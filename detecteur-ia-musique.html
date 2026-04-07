@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoundScan AI — Détecteur IA Musique</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Archivo:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ===== DESIGN SYSTEM ===== */
+    :root {
+      --accent: #7c5cfc;
+      --accent-rgb: 124, 92, 252;
+      --accent2: #e040fb;
+      --bg: #09090f;
+      --surface: #0f0f1a;
+      --card: rgba(255,255,255,0.03);
+      --card-border: rgba(255,255,255,0.07);
+      --text: #f0f0f8;
+      --text-secondary: #7070a0;
+      --human: #00e5a0;
+      --human-rgb: 0, 229, 160;
+      --ai: #ff4c6a;
+      --ai-rgb: 255, 76, 106;
+      --warn: #ffb400;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: auto; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Archivo', system-ui, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ===== SCROLL PROGRESS BAR ===== */
+    #scrollProgress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      z-index: 10000;
+      transition: width 0.1s linear;
+    }
+
+    /* ===== STARSCAPE ===== */
+    #starscape {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    /* ===== NAVBAR ===== */
+    #navbar {
+      position: fixed;
+      top: 12px; left: 0; right: 0;
+      z-index: 1000;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .nav-inner {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 14px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #navbar.nav-scrolled .nav-inner {
+      max-width: 860px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 100px;
+      padding: 10px 28px;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: rgba(var(--accent-rgb), 0.15) !important;
+      color: #a07cff !important;
+      border: 1px solid rgba(var(--accent-rgb), 0.3);
+      border-radius: 8px;
+      padding: 7px 16px !important;
+      transition: all 0.2s !important;
+    }
+
+    .nav-cta:hover {
+      background: rgba(var(--accent-rgb), 0.25) !important;
+      color: var(--text) !important;
+    }
+
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    /* ===== MAIN LAYOUT ===== */
+    .page-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ===== HERO ===== */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      padding: 120px 24px 80px;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+    }
+
+    .orb-1 {
+      width: 600px; height: 600px;
+      background: var(--accent);
+      opacity: 0.08;
+      top: -200px; right: -150px;
+    }
+
+    .orb-2 {
+      width: 450px; height: 450px;
+      background: var(--accent2);
+      opacity: 0.06;
+      bottom: -180px; left: -120px;
+    }
+
+    .grid-overlay {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+
+    .hero-content { position: relative; z-index: 1; max-width: 700px; }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(var(--accent-rgb), 0.12);
+      border: 1px solid rgba(var(--accent-rgb), 0.25);
+      border-radius: 20px;
+      padding: 5px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #a07cff;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .badge-dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: badgePulse 2s infinite;
+    }
+
+    @keyframes badgePulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.4); }
+    }
+
+    .hero-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(38px, 6vw, 72px);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -1.5px;
+      background: linear-gradient(150deg, #fff 0%, #c4b0ff 45%, #e040fb 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+    }
+
+    .hero-sub {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      max-width: 520px;
+      margin: 0 auto 36px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 60px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      box-shadow: 0 0 28px rgba(var(--accent-rgb), 0.35);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: none;
+      display: inline-block;
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.55);
+      transform: translateY(-2px);
+      background: #8d6fff;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      padding: 14px 32px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      display: inline-block;
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .scroll-hint {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 1px;
+    }
+
+    .scroll-arrow {
+      width: 18px; height: 28px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      position: relative;
+    }
+
+    .scroll-arrow::after {
+      content: '';
+      position: absolute;
+      left: 50%; top: 4px;
+      transform: translateX(-50%);
+      width: 3px; height: 7px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 2px;
+      animation: scrollDot 1.6s infinite;
+    }
+
+    @keyframes scrollDot {
+      0% { opacity: 1; top: 4px; }
+      100% { opacity: 0; top: 14px; }
+    }
+
+    /* ===== ANALYSER SECTION ===== */
+    #analyser {
+      position: relative;
+      z-index: 1;
+      padding: 60px 24px 80px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(26px, 3.5vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      margin-bottom: 12px;
+    }
+
+    .section-subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 40px;
+    }
+
+    /* ===== DROP ZONE ===== */
+    .drop-zone {
+      background: var(--card);
+      border: 2px dashed var(--card-border);
+      border-radius: 24px;
+      padding: 60px 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(var(--accent-rgb), 0.07), transparent 65%);
+      pointer-events: none;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: rgba(var(--accent-rgb), 0.5);
+      background: rgba(var(--accent-rgb), 0.04);
+    }
+
+    .drop-icon {
+      width: 68px; height: 68px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 22px;
+      font-size: 30px;
+      box-shadow: 0 12px 40px rgba(var(--accent-rgb), 0.3);
+    }
+
+    .drop-zone h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .drop-zone p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .formats {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .format-tag {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      border-radius: 7px;
+      padding: 4px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    #file-input { display: none; }
+
+    /* ===== FILE INFO ===== */
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-top: 16px;
+    }
+
+    .file-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+
+    .file-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .file-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* ===== PROGRESS ===== */
+    .progress-section {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 28px;
+      margin-top: 20px;
+    }
+
+    .progress-section.visible { display: block; }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .progress-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .progress-pct {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .progress-bar {
+      height: 5px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .progress-step {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ===== WAVEFORM / SPECTRUM ===== */
+    .viz-container {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+
+    .viz-container.visible { display: block; }
+
+    .viz-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+
+    canvas#waveform {
+      width: 100%; height: 72px;
+      border-radius: 8px;
+      display: block;
+    }
+
+    canvas#spectrum {
+      width: 100%; height: 110px;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* ===== RESULTS ===== */
+    .results {
+      display: none;
+      margin-top: 24px;
+      animation: fadeUp 0.5s ease;
+    }
+
+    .results.visible { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Verdict */
+    .verdict-card {
+      border-radius: 24px;
+      padding: 44px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 20px;
+      backdrop-filter: blur(20px);
+    }
+
+    .verdict-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, var(--glow-color, transparent), transparent 60%);
+      pointer-events: none;
+    }
+
+    .verdict-card.ai {
+      background: rgba(255,76,106,0.06);
+      border: 1px solid rgba(var(--ai-rgb), 0.25);
+      --glow-color: rgba(var(--ai-rgb), 0.08);
+    }
+
+    .verdict-card.human {
+      background: rgba(0,229,160,0.06);
+      border: 1px solid rgba(var(--human-rgb), 0.25);
+      --glow-color: rgba(var(--human-rgb), 0.08);
+    }
+
+    .verdict-card.uncertain {
+      background: rgba(255,180,0,0.06);
+      border: 1px solid rgba(255,180,0,0.25);
+      --glow-color: rgba(255,180,0,0.08);
+    }
+
+    .verdict-emoji {
+      font-size: 56px;
+      display: block;
+      margin-bottom: 18px;
+    }
+
+    .verdict-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+
+    .verdict-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      margin-bottom: 10px;
+    }
+
+    .verdict-card.ai .verdict-title { color: var(--ai); }
+    .verdict-card.human .verdict-title { color: var(--human); }
+    .verdict-card.uncertain .verdict-title { color: var(--warn); }
+
+    .verdict-sub {
+      color: var(--text-secondary);
+      font-size: 14px;
+      max-width: 500px;
+      margin: 0 auto 28px;
+      line-height: 1.6;
+    }
+
+    .scores-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .score-item { text-align: center; }
+
+    .score-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .score-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 44px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .score-value.human { color: var(--human); }
+    .score-value.ai { color: var(--ai); }
+
+    .score-sep {
+      font-size: 20px;
+      color: rgba(255,255,255,0.15);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Probability bar */
+    .prob-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 18px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+
+    .prob-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .prob-track {
+      height: 24px;
+      background: rgba(var(--human-rgb), 0.12);
+      border: 1px solid rgba(var(--human-rgb), 0.18);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .prob-fill {
+      height: 100%;
+      border-radius: 12px;
+      transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .prob-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    .prob-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+    }
+
+    .prob-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Metrics grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      padding: 20px;
+      transition: border-color 0.25s, transform 0.25s;
+    }
+
+    .metric-card:hover {
+      border-color: rgba(var(--accent-rgb), 0.25);
+      transform: translateY(-2px);
+    }
+
+    .metric-icon { font-size: 24px; margin-bottom: 12px; }
+
+    .metric-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+
+    .metric-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .metric-bar {
+      height: 3px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .metric-bar-fill.red { background: var(--ai); }
+    .metric-bar-fill.green { background: var(--human); }
+    .metric-bar-fill.yellow { background: var(--warn); }
+    .metric-bar-fill.purple { background: var(--accent); }
+
+    /* Indicators */
+    .indicators-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 18px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+
+    .indicators-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+    }
+
+    .indicator-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .indicator-item:last-child { border-bottom: none; }
+
+    .ind-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .ind-icon.bad { background: rgba(var(--ai-rgb), 0.12); }
+    .ind-icon.good { background: rgba(var(--human-rgb), 0.12); }
+    .ind-icon.neutral { background: rgba(255,180,0,0.12); }
+
+    .ind-body { flex: 1; }
+
+    .ind-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .ind-detail {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .ind-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 7px;
+      white-space: nowrap;
+      align-self: flex-start;
+      margin-top: 2px;
+    }
+
+    .ind-tag.bad { background: rgba(var(--ai-rgb),0.15); color: var(--ai); }
+    .ind-tag.good { background: rgba(var(--human-rgb),0.15); color: var(--human); }
+    .ind-tag.neutral { background: rgba(255,180,0,0.15); color: var(--warn); }
+
+    /* Disclaimer */
+    .disclaimer {
+      background: rgba(var(--accent-rgb), 0.06);
+      border: 1px solid rgba(var(--accent-rgb), 0.18);
+      border-radius: 14px;
+      padding: 16px 22px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .disclaimer strong { color: var(--text); }
+
+    /* Reset button */
+    .btn-reset {
+      display: block;
+      margin: 0 auto;
+      padding: 13px 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(var(--accent-rgb), 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .btn-reset:hover {
+      opacity: 0.85;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(var(--accent-rgb), 0.45);
+    }
+
+    /* ===== HOW IT WORKS ===== */
+    #how {
+      position: relative;
+      z-index: 1;
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    #how .section-title { margin-bottom: 48px; text-align: center; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 32px;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(var(--accent-rgb), 0.2);
+    }
+
+    .feature-icon { font-size: 2rem; margin-bottom: 16px; }
+
+    .feature-card h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 60px 32px 40px;
+      text-align: center;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 24px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      margin-bottom: 24px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--text); }
+
+    .footer-copy {
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    @media (max-width: 600px) {
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .scores-row { gap: 16px; }
+      .score-value { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Scroll Progress Bar -->
+  <div id="scrollProgress"></div>
+
+  <!-- Starscape Canvas -->
+  <canvas id="starscape"></canvas>
+
+  <!-- Navbar -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <div class="nav-logo-icon">🎵</div>
+        SoundScan AI
+      </div>
+      <div class="nav-links">
+        <a href="#analyser">Analyser</a>
+        <a href="#how">Comment ça marche</a>
+        <a href="#analyser" class="nav-cta">Démarrer l'analyse</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-content">
+
+    <!-- Hero -->
+    <section id="hero">
+      <div class="hero-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="grid-overlay"></div>
+      </div>
+      <div class="hero-content">
+        <div class="hero-badge"><span class="badge-dot"></span>Analyse Acoustique Heuristique</div>
+        <h1 class="hero-title">Détectez les sons<br>générés par l'IA</h1>
+        <p class="hero-sub">Analysez n'importe quel fichier audio et découvrez s'il a été produit par une intelligence artificielle ou par des musiciens humains — en quelques secondes.</p>
+        <div class="hero-buttons">
+          <a href="#analyser" class="btn-primary">Analyser un fichier →</a>
+          <a href="#how" class="btn-secondary">Comment ça marche</a>
+        </div>
+        <div class="scroll-hint">
+          <span>Scrollez</span>
+          <div class="scroll-arrow"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analyser -->
+    <section id="analyser">
+      <div style="max-width:860px; margin:0 auto; padding:0 24px 80px;">
+
+        <h2 class="section-title">Analyseur Audio</h2>
+        <p class="section-subtitle">Déposez votre fichier audio — l'analyse dure quelques secondes.</p>
+
+        <!-- Drop Zone -->
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-icon">🎵</div>
+          <h2>Déposez votre fichier ici</h2>
+          <p>ou cliquez pour parcourir vos fichiers</p>
+          <div class="formats">
+            <span class="format-tag">MP3</span>
+            <span class="format-tag">WAV</span>
+            <span class="format-tag">OGG</span>
+            <span class="format-tag">FLAC</span>
+            <span class="format-tag">AAC</span>
+            <span class="format-tag">M4A</span>
+          </div>
+          <input type="file" id="file-input" accept="audio/*" />
+        </div>
+
+        <!-- File Info -->
+        <div class="file-info" id="file-info" style="display:none">
+          <div class="file-icon">🎧</div>
+          <div>
+            <div class="file-name" id="file-name-display"></div>
+            <div class="file-meta" id="file-meta-display"></div>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-section" id="progress-section">
+          <div class="progress-header">
+            <span class="progress-label">Analyse en cours</span>
+            <span class="progress-pct" id="progress-pct">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <div class="progress-step" id="progress-step">Chargement…</div>
+        </div>
+
+        <!-- Waveform -->
+        <div class="viz-container" id="waveform-container">
+          <div class="viz-label">Forme d'onde</div>
+          <canvas id="waveform"></canvas>
+        </div>
+
+        <!-- Spectrum -->
+        <div class="viz-container" id="spectrum-container">
+          <div class="viz-label">Analyse spectrale FFT</div>
+          <canvas id="spectrum"></canvas>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+
+          <div class="verdict-card" id="verdict-card">
+            <span class="verdict-emoji" id="verdict-emoji"></span>
+            <div class="verdict-eyebrow">Verdict</div>
+            <div class="verdict-title" id="verdict-title"></div>
+            <div class="verdict-sub" id="verdict-sub"></div>
+            <div class="scores-row">
+              <div class="score-item">
+                <div class="score-label">Humain</div>
+                <div class="score-value human" id="score-human">—</div>
+              </div>
+              <div class="score-sep">/</div>
+              <div class="score-item">
+                <div class="score-label">IA</div>
+                <div class="score-value ai" id="score-ai">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="prob-card">
+            <div class="prob-title">Répartition de probabilité</div>
+            <div class="prob-track">
+              <div class="prob-fill" id="prob-fill" style="width:50%"></div>
+            </div>
+            <div class="prob-labels">
+              <span class="prob-label"><span class="prob-dot" style="background:var(--human)"></span>Humain</span>
+              <span class="prob-label"><span class="prob-dot" style="background:var(--ai)"></span>IA</span>
+            </div>
+          </div>
+
+          <div class="metrics-grid" id="metrics-grid"></div>
+
+          <div class="indicators-card">
+            <div class="indicators-title">Indicateurs acoustiques détectés</div>
+            <div id="indicators-list"></div>
+          </div>
+
+          <div class="disclaimer">
+            <strong>Note importante :</strong> Cette analyse repose sur des heuristiques acoustiques
+            (spectrale, dynamique, artefacts de synthèse, bruit de fond, flux temporel, etc.).
+            Elle ne remplace pas un modèle ML entraîné sur données labellisées.
+            Les résultats sont indicatifs et peuvent varier selon l'encodage, le genre musical ou le post-traitement.
+          </div>
+
+          <button class="btn-reset" id="btn-reset">Analyser un autre fichier</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how">
+      <h2 class="section-title">Comment ça fonctionne</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🎛</div>
+          <h3>Analyse spectrale FFT</h3>
+          <p>Transformée de Fourier rapide pour décomposer le signal en fréquences et détecter les artefacts de synthèse neurale typiques.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Dynamique & Variabilité</h3>
+          <p>Mesure la plage dynamique, le rapport crête/RMS et les micro-variations — les musiques IA ont souvent une dynamique trop régulière.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔊</div>
+          <h3>Bruit naturel & Hautes fréquences</h3>
+          <p>Détecte l'absence de bruit ambiant naturel et analyse l'énergie au-dessus de 12kHz, souvent absente dans les modèles génératifs.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">〰️</div>
+          <h3>Flux spectral temporel</h3>
+          <p>Compare l'évolution spectrale entre segments. Les IA produisent souvent des textures trop stables dans le temps.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎵</div>
+          <h3>Planéité spectrale</h3>
+          <p>L'entropie de Wiener révèle si le son est trop tonal (synth pure) ou trop bruité — deux signatures des modèles IA.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>Score composite</h3>
+          <p>Tous les indicateurs sont pondérés pour produire un score de probabilité 0–100% avec un verdict clair : Humain, IA ou Incertain.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-brand">
+        <div class="nav-logo-icon" style="width:28px;height:28px;font-size:14px">🎵</div>
+        SoundScan AI
+      </div>
+      <div class="footer-links">
+        <a href="#hero">Accueil</a>
+        <a href="#analyser">Analyser</a>
+        <a href="#how">Comment ça marche</a>
+      </div>
+      <p class="footer-copy">&copy; 2026 SoundScan AI — Outil d'analyse acoustique heuristique</p>
+    </footer>
+
+  </div><!-- /page-content -->
+
+<script>
+// ======================================================
+//  STARSCAPE
+// ======================================================
+(function() {
+  const canvas = document.getElementById('starscape');
+  const ctx = canvas.getContext('2d');
+  const stars = [];
+  const COUNT = 180;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+
+  function init() {
+    resize();
+    for (let i = 0; i < COUNT; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        radius: 0.3 + Math.random() * 1.3,
+        baseOpacity: 0.2 + Math.random() * 0.6,
+        driftX: (Math.random() - 0.5) * 0.03,
+        driftY: (Math.random() - 0.5) * 0.015,
+        twinkleSpeed: 0.0003 + Math.random() * 0.001,
+        twinklePhase: Math.random() * Math.PI * 2
+      });
+    }
+    animate();
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const now = Date.now();
+    for (const s of stars) {
+      s.x += s.driftX;
+      s.y += s.driftY;
+      if (s.x < 0) s.x = canvas.width;
+      if (s.x > canvas.width) s.x = 0;
+      if (s.y < 0) s.y = canvas.height;
+      if (s.y > canvas.height) s.y = 0;
+      const tw = Math.sin(now * s.twinkleSpeed + s.twinklePhase);
+      const op = Math.max(0, s.baseOpacity + tw * 0.3);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${op})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', resize);
+  init();
+})();
+
+// ======================================================
+//  SCROLL PROGRESS + NAVBAR
+// ======================================================
+const scrollProgress = document.getElementById('scrollProgress');
+const navbar = document.getElementById('navbar');
+
+window.addEventListener('scroll', () => {
+  const pct = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+  scrollProgress.style.width = pct + '%';
+  navbar.classList.toggle('nav-scrolled', window.scrollY > 80);
+}, { passive: true });
+
+// ======================================================
+//  DROP ZONE
+// ======================================================
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('audio/')) processFile(file);
+  else alert('Veuillez déposer un fichier audio valide.');
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('waveform-container').classList.remove('visible');
+  document.getElementById('spectrum-container').classList.remove('visible');
+  document.getElementById('progress-section').classList.remove('visible');
+  document.getElementById('file-info').style.display = 'none';
+  fileInput.value = '';
+});
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function setProgress(pct, step) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('progress-step').textContent = step;
+}
+
+async function processFile(file) {
+  document.getElementById('file-name-display').textContent = file.name;
+  document.getElementById('file-meta-display').textContent = formatBytes(file.size) + ' · ' + file.type;
+  document.getElementById('file-info').style.display = 'flex';
+
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('waveform-container').classList.remove('visible');
+  document.getElementById('spectrum-container').classList.remove('visible');
+  document.getElementById('progress-section').classList.add('visible');
+  setProgress(5, 'Lecture du fichier…');
+
+  const arrayBuffer = await file.arrayBuffer();
+  setProgress(15, 'Décodage audio…');
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let audioBuffer;
+  try {
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+  } catch(e) {
+    alert('Impossible de décoder ce fichier. Vérifiez le format.');
+    document.getElementById('progress-section').classList.remove('visible');
+    return;
+  }
+
+  setProgress(30, 'Extraction des échantillons…');
+  const channelData = audioBuffer.getChannelData(0);
+  const sampleRate = audioBuffer.sampleRate;
+  const duration = audioBuffer.duration;
+
+  setProgress(42, 'Rendu de la forme d\'onde…');
+  document.getElementById('waveform-container').classList.add('visible');
+  await new Promise(r => requestAnimationFrame(r));
+  drawWaveform(channelData);
+
+  setProgress(58, 'Analyse spectrale FFT…');
+  const fftData = computeFFT(channelData, sampleRate);
+  document.getElementById('spectrum-container').classList.add('visible');
+  await new Promise(r => requestAnimationFrame(r));
+  drawSpectrum(fftData, sampleRate);
+
+  setProgress(72, 'Calcul des métriques acoustiques…');
+  const metrics = await analyzeAudio(channelData, sampleRate, duration, fftData);
+
+  setProgress(92, 'Calcul du score final…');
+  await sleep(350);
+  setProgress(100, 'Analyse terminée !');
+  await sleep(400);
+
+  document.getElementById('progress-section').classList.remove('visible');
+  renderResults(metrics);
+  audioCtx.close();
+
+  document.getElementById('analyser').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ======================================================
+//  WAVEFORM
+// ======================================================
+function drawWaveform(data) {
+  const canvas = document.getElementById('waveform');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 72 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth, H = 72;
+  ctx.fillStyle = '#09090f';
+  ctx.fillRect(0,0,W,H);
+
+  const step = Math.ceil(data.length / W);
+  const mid = H / 2;
+  const grad = ctx.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0, '#7c5cfc');
+  grad.addColorStop(0.5, '#e040fb');
+  grad.addColorStop(1, '#7c5cfc');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  for (let i = 0; i < W; i++) {
+    let mn = 1, mx = -1;
+    for (let j = 0; j < step; j++) {
+      const s = data[i * step + j] || 0;
+      if (s < mn) mn = s;
+      if (s > mx) mx = s;
+    }
+    ctx.moveTo(i, mid + mn * mid * 0.9);
+    ctx.lineTo(i, mid + mx * mid * 0.9);
+  }
+  ctx.stroke();
+}
+
+// ======================================================
+//  FFT
+// ======================================================
+function computeFFT(data, sampleRate) {
+  const fftSize = 8192;
+  const start = Math.floor(data.length * 0.2);
+  const slice = data.slice(start, start + fftSize);
+  const N = 2048;
+  const re = new Float32Array(N);
+  const im = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const w = 0.5 * (1 - Math.cos(2 * Math.PI * i / (N - 1)));
+    re[i] = (slice[i] || 0) * w;
+  }
+  fft(re, im, N);
+  const magnitudes = new Float32Array(N/2);
+  for (let i = 0; i < N/2; i++)
+    magnitudes[i] = Math.sqrt(re[i]*re[i] + im[i]*im[i]);
+  return { magnitudes, sampleRate, N };
+}
+
+function fft(re, im, N) {
+  for (let i = 1, j = 0; i < N; i++) {
+    let bit = N >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      [re[i], re[j]] = [re[j], re[i]];
+      [im[i], im[j]] = [im[j], im[i]];
+    }
+  }
+  for (let len = 2; len <= N; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i = 0; i < N; i += len) {
+      let cRe = 1, cIm = 0;
+      for (let j = 0; j < len/2; j++) {
+        const uR = re[i+j], uI = im[i+j];
+        const vR = re[i+j+len/2]*cRe - im[i+j+len/2]*cIm;
+        const vI = re[i+j+len/2]*cIm + im[i+j+len/2]*cRe;
+        re[i+j] = uR+vR; im[i+j] = uI+vI;
+        re[i+j+len/2] = uR-vR; im[i+j+len/2] = uI-vI;
+        const nR = cRe*wRe - cIm*wIm;
+        cIm = cRe*wIm + cIm*wRe;
+        cRe = nR;
+      }
+    }
+  }
+}
+
+function drawSpectrum({ magnitudes, sampleRate, N }) {
+  const canvas = document.getElementById('spectrum');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 110 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth, H = 110;
+  ctx.fillStyle = '#09090f';
+  ctx.fillRect(0,0,W,H);
+
+  const nyquist = sampleRate / 2;
+  const maxM = Math.max(...magnitudes) || 1;
+  const bw = W / magnitudes.length;
+
+  for (let i = 0; i < magnitudes.length; i++) {
+    const ratio = i / magnitudes.length;
+    const h = (magnitudes[i] / maxM) * H * 0.93;
+    const hue = 260 + ratio * 90;
+    ctx.fillStyle = `hsl(${hue},75%,58%)`;
+    ctx.fillRect(i*bw, H-h, Math.max(bw-0.4, 0.4), h);
+  }
+
+  ctx.font = '10px JetBrains Mono, monospace';
+  [500,1000,2000,4000,8000,16000].forEach(freq => {
+    if (freq > nyquist) return;
+    const x = (freq / nyquist) * W;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(x, 0, 1, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillText(freq >= 1000 ? (freq/1000)+'k' : freq+'', x+3, H-4);
+  });
+}
+
+// ======================================================
+//  ADVANCED AUDIO FEATURES — MFCC / ONSETS / CONTRAST
+// ======================================================
+
+function buildMelFilterbank(numFilters, fftSize, sampleRate) {
+  const nyquist = sampleRate / 2;
+  const minMel = 2595 * Math.log10(1 + 80 / 700);
+  const maxMel = 2595 * Math.log10(1 + Math.min(nyquist, 8000) / 700);
+  const binCount = fftSize / 2;
+  const melPts = [];
+  for (let i = 0; i <= numFilters + 1; i++)
+    melPts.push(minMel + (i / (numFilters + 1)) * (maxMel - minMel));
+  const hzPts = melPts.map(m => 700 * (Math.pow(10, m / 2595) - 1));
+  const bins = hzPts.map(h => Math.min(binCount - 1, Math.floor(h / nyquist * binCount)));
+  const fb = [];
+  for (let m = 1; m <= numFilters; m++) {
+    const f = new Float32Array(binCount);
+    for (let k = bins[m-1]; k <= bins[m+1]; k++) {
+      f[k] = k <= bins[m]
+        ? (k - bins[m-1]) / Math.max(1, bins[m] - bins[m-1])
+        : (bins[m+1] - k) / Math.max(1, bins[m+1] - bins[m]);
+    }
+    fb.push(f);
+  }
+  return fb;
+}
+
+function frameMFCC(powerSpec, filterbank, numCoeffs) {
+  const N = filterbank.length;
+  const melE = filterbank.map(f => {
+    let e = 0;
+    for (let k = 0; k < powerSpec.length; k++) e += f[k] * powerSpec[k];
+    return Math.log(e + 1e-10);
+  });
+  const mfcc = new Float32Array(numCoeffs);
+  for (let n = 0; n < numCoeffs; n++) {
+    let s = 0;
+    for (let m = 0; m < N; m++)
+      s += melE[m] * Math.cos(Math.PI * n * (m + 0.5) / N);
+    mfcc[n] = s;
+  }
+  return mfcc;
+}
+
+function computeMFCCVariance(data, sampleRate, numSegments) {
+  const FRAME = 1024, NUM_COEFFS = 13;
+  const FB = buildMelFilterbank(26, FRAME, sampleRate);
+  const segLen = Math.floor(data.length / numSegments);
+  const allMFCC = [];
+  for (let seg = 0; seg < numSegments; seg++) {
+    const start = seg * segLen;
+    const re = new Float32Array(FRAME), im = new Float32Array(FRAME);
+    for (let i = 0; i < FRAME; i++) {
+      const w = 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (FRAME - 1));
+      re[i] = (data[start + i] || 0) * w;
+    }
+    fft(re, im, FRAME);
+    const ps = new Float32Array(FRAME / 2);
+    for (let i = 0; i < FRAME / 2; i++)
+      ps[i] = (re[i] ** 2 + im[i] ** 2) / FRAME;
+    allMFCC.push(frameMFCC(ps, FB, NUM_COEFFS));
+  }
+  // Average variance of coefficients 1–12 across all segments
+  let total = 0;
+  for (let c = 1; c < NUM_COEFFS; c++) {
+    const vals = allMFCC.map(m => m[c]);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    total += vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
+  }
+  return total / (NUM_COEFFS - 1);
+}
+
+function computeOnsetRegularity(data, sampleRate) {
+  const HOP = 256, FRAME = 512;
+  const energies = [];
+  for (let i = 0; i + FRAME < data.length; i += HOP) {
+    let e = 0;
+    for (let j = 0; j < FRAME; j++) e += data[i + j] ** 2;
+    energies.push(Math.sqrt(e / FRAME));
+  }
+  const novelty = energies.map((e, i) => i > 0 ? Math.max(0, e - energies[i - 1]) : 0);
+  const mean = novelty.reduce((a, b) => a + b, 0) / novelty.length;
+  const threshold = mean * 1.8;
+  const onsetTimes = [];
+  for (let i = 2; i < novelty.length - 2; i++) {
+    if (novelty[i] > threshold &&
+        novelty[i] >= novelty[i-1] && novelty[i] >= novelty[i-2] &&
+        novelty[i] >= novelty[i+1] && novelty[i] >= novelty[i+2])
+      onsetTimes.push(i * HOP / sampleRate);
+  }
+  if (onsetTimes.length < 6) return { cv: 0.5, bpm: 0, onsetCount: onsetTimes.length };
+  const iois = [];
+  for (let i = 1; i < onsetTimes.length; i++)
+    iois.push(onsetTimes[i] - onsetTimes[i - 1]);
+  const meanIOI = iois.reduce((a, b) => a + b, 0) / iois.length;
+  const stdIOI = Math.sqrt(iois.reduce((a, b) => a + (b - meanIOI) ** 2, 0) / iois.length);
+  return {
+    cv: stdIOI / (meanIOI || 1e-6),
+    bpm: Math.round(60 / (meanIOI || 1)),
+    onsetCount: onsetTimes.length
+  };
+}
+
+function computeSpectralContrast(magnitudes, sampleRate) {
+  const nyquist = sampleRate / 2;
+  const N = magnitudes.length;
+  const bands = [[200,400],[400,800],[800,1600],[1600,3200],[3200,6400],[6400,12800]]
+    .filter(([,hi]) => hi / 2 < nyquist);
+  const contrasts = [];
+  for (const [lo, hi] of bands) {
+    const b0 = Math.floor(lo / nyquist * N);
+    const b1 = Math.min(Math.floor(hi / nyquist * N), N - 1);
+    if (b1 <= b0 + 3) continue;
+    const mags = Array.from(magnitudes.slice(b0, b1 + 1)).filter(m => m > 0).sort((a, b) => a - b);
+    if (mags.length < 4) continue;
+    const k = Math.max(1, Math.floor(mags.length * 0.1));
+    const peakMean = mags.slice(-k).reduce((a, b) => a + b, 0) / k;
+    const valMean  = mags.slice(0, k).reduce((a, b) => a + b, 0) / k;
+    if (peakMean > 0 && valMean > 0)
+      contrasts.push(Math.log10(peakMean / valMean));
+  }
+  return contrasts.length > 0 ? contrasts.reduce((a, b) => a + b, 0) / contrasts.length : 0;
+}
+
+function computeExtendedFlux(data, sampleRate, numSegments) {
+  const N2 = 1024;
+  const segLen = Math.floor(data.length / numSegments);
+  const segMags = [];
+  for (let seg = 0; seg < numSegments; seg++) {
+    const re = new Float32Array(N2), im = new Float32Array(N2);
+    for (let i = 0; i < N2; i++) re[i] = data[seg * segLen + i] || 0;
+    fft(re, im, N2);
+    const mg = new Float32Array(N2 / 2);
+    for (let i = 0; i < N2 / 2; i++) mg[i] = Math.sqrt(re[i] ** 2 + im[i] ** 2);
+    segMags.push(mg);
+  }
+  let total = 0, count = 0;
+  for (let s = 1; s < numSegments; s++) {
+    for (let i = 0; i < N2 / 2; i++) { total += Math.abs(segMags[s][i] - segMags[s-1][i]); count++; }
+  }
+  return total / (count || 1);
+}
+
+// ======================================================
+//  AUDIO ANALYSIS — v2
+// ======================================================
+async function analyzeAudio(data, sampleRate, duration, fftData) {
+  const { magnitudes } = fftData;
+  const nyquist = sampleRate / 2;
+  const N = magnitudes.length;
+
+  // RMS & Peak
+  let sum = 0, peak = 0;
+  for (let i = 0; i < data.length; i++) {
+    const s = Math.abs(data[i]);
+    sum += s * s;
+    if (s > peak) peak = s;
+  }
+  const rms = Math.sqrt(sum / data.length);
+  const dynamicRangeDB = 20 * Math.log10(peak / (rms || 1e-6));
+
+  // Spectral centroid
+  let wSum = 0, mSum = 0;
+  for (let i = 0; i < N; i++) { wSum += (i/N)*nyquist*magnitudes[i]; mSum += magnitudes[i]; }
+  const spectralCentroid = wSum / (mSum || 1);
+
+  // HF energy
+  const hfStart = Math.floor(N * 12000 / nyquist);
+  let hfE = 0, totE = 0;
+  for (let i = 0; i < N; i++) { totE += magnitudes[i]; if (i >= hfStart) hfE += magnitudes[i]; }
+  const hfRatio = hfE / (totE || 1);
+
+  // Spectral flatness
+  const nz = magnitudes.filter(m => m > 0);
+  let geoS = 0, arS = 0;
+  for (const m of nz) { geoS += Math.log(m); arS += m; }
+  const spectralFlatness = nz.length > 0 ? Math.exp(geoS/nz.length)/(arS/nz.length) : 0;
+
+  // SNR
+  const sorted = Float32Array.from(data.map(Math.abs)).sort();
+  const noiseFloor = sorted[Math.floor(sorted.length * 0.05)];
+  const snrDB = 20 * Math.log10((rms || 1e-6) / (noiseFloor || 1e-6));
+
+  // RMS variability
+  const ws = Math.floor(sampleRate * 0.05);
+  const wRMS = [];
+  for (let i = 0; i + ws < data.length; i += ws) {
+    let s = 0; for (let j = 0; j < ws; j++) s += data[i+j]**2;
+    wRMS.push(Math.sqrt(s / ws));
+  }
+  const avgR = wRMS.reduce((a,b)=>a+b,0)/(wRMS.length||1);
+  let vari = 0;
+  for (const r of wRMS) vari += (r-avgR)**2;
+  const rmsVariability = Math.sqrt(vari/(wRMS.length||1))/(avgR||1e-6);
+
+  // Advanced features
+  const flux             = computeExtendedFlux(data, sampleRate, 20);
+  const mfccVariance     = computeMFCCVariance(data, sampleRate, 24);
+  const onset            = computeOnsetRegularity(data, sampleRate);
+  const spectralContrast = computeSpectralContrast(magnitudes, sampleRate);
+
+  return {
+    rms, peak, dynamicRangeDB, spectralCentroid,
+    hfRatio, spectralFlatness, snrDB, noiseFloor, flux, rmsVariability,
+    mfccVariance,
+    onsetCV: onset.cv, onsetBPM: onset.bpm, onsetCount: onset.onsetCount,
+    spectralContrast, duration, sampleRate
+  };
+}
+
+// ======================================================
+//  SCORING — weighted probabilistic approach
+// ======================================================
+function clamp(v,lo,hi) { return Math.max(lo,Math.min(hi,v)); }
+
+// Sigmoid: returns P(AI) ∈ [0,1]; higher x → more AI
+function sig(x, center, scale) {
+  return 1 / (1 + Math.exp(-(x - center) / scale));
+}
+
+function scoreMetrics(m) {
+  const indicators = [];
+
+  // ─── P(AI) per feature — each mapped to [0,1] ───
+  //
+  // KEY INSIGHT: modern AI music (Suno, Udio, MusicGen) sounds natural in
+  // most dimensions. The most reliable discriminators are:
+  //  1. SNR / noise floor — AI WAV exports have no analog noise at all
+  //  2. Absolute noise floor — near-zero silence in AI, micro-noise in humans
+  //  3. Spectral flux — AI can be dynamic, but transition patterns differ
+  //  4. Dynamic range — AI tends to be slightly over-processed
+  //
+  // MFCC variance and onset CV are weak on modern AI (it can produce
+  // varied, rhythmically imperfect music). Weights reflect this.
+
+  // 1. SNR — PRIMARY INDICATOR (highest weight)
+  //    AI WAV: 65-90 dB (no analog chain, no mic noise)
+  //    Studio human: 50-68 dB | Home recording: 35-52 dB
+  const pSNR = sig(m.snrDB, 50, 6);
+
+  // 2. Absolute noise floor — if the quietest 5% of signal is truly silent → AI
+  //    AI: noiseFloor ≈ 0.000001-0.00001  |  Human mic: 0.001-0.01
+  const pNoiseFloor = sig(-Math.log10(m.noiseFloor + 1e-9), 6.5, 0.8);
+
+  // 3. Dynamic range — AI tends toward moderate compression
+  const pDynamic = sig(-m.dynamicRangeDB, -9, 2.2);
+
+  // 4. RMS variability — AI can be dynamic, but subtle
+  const pRMSVar = sig(-m.rmsVariability, -0.13, 0.035);
+
+  // 5. Spectral flux (20 segments) — AI transitions are smoother
+  const pFlux = sig(-m.flux * 1000, -3.0, 1.0);
+
+  // 6. MFCC variance — less reliable for modern AI (de-weighted)
+  const pMFCC = sig(-m.mfccVariance, -3.5, 1.2);
+
+  // 7. Onset regularity — not very reliable for Suno/Udio (de-weighted)
+  const pOnset = m.onsetCount >= 8
+    ? sig(-m.onsetCV, -0.13, 0.05)
+    : 0.48; // slight lean toward human if not enough onsets
+
+  // 8. Spectral contrast — supplementary signal
+  const pContrast = sig(-m.spectralContrast, -1.8, 0.6);
+
+  // 9. HF ratio
+  let pHF = 0.48;
+  if (m.sampleRate > 32000) {
+    if (m.hfRatio < 0.004) pHF = 0.82;
+    else if (m.hfRatio > 0.06) pHF = 0.65;
+    else pHF = 0.25;
+  }
+
+  // ─── Weighted combination — SNR dominates ───
+  const aiProb = (
+    0.26 * pSNR        +   // ↑↑ primary signal
+    0.16 * pNoiseFloor +   // ↑↑ absolute silence check
+    0.12 * pDynamic    +
+    0.11 * pRMSVar     +
+    0.11 * pFlux       +
+    0.09 * pMFCC       +   // ↓ less reliable on modern AI
+    0.08 * pOnset      +   // ↓ less reliable on modern AI
+    0.04 * pContrast   +
+    0.03 * pHF
+  );
+
+  const aiScore = Math.round(clamp(aiProb * 100, 0, 100));
+
+  // --- Build indicators ---
+  // Dynamic range
+  if (m.dynamicRangeDB < 6)
+    indicators.push({ name:'Plage dynamique compressée', detail:`${m.dynamicRangeDB.toFixed(1)} dB — compression extrême, signature fréquente des modèles génératifs`, cls:'bad', icon:'📊', tag:'IA probable' });
+  else if (m.dynamicRangeDB > 14)
+    indicators.push({ name:'Bonne plage dynamique', detail:`${m.dynamicRangeDB.toFixed(1)} dB — variation naturelle cohérente avec une production humaine`, cls:'good', icon:'📊', tag:'Humain' });
+  else
+    indicators.push({ name:'Plage dynamique modérée', detail:`${m.dynamicRangeDB.toFixed(1)} dB`, cls:'neutral', icon:'📊', tag:'Neutre' });
+
+  // MFCC variance
+  if (m.mfccVariance < 1.5)
+    indicators.push({ name:'Texture timbrale trop stable (MFCC)', detail:`Variance MFCC de ${m.mfccVariance.toFixed(2)} — le timbre ne varie quasiment pas dans le temps, caractéristique de la synthèse IA`, cls:'bad', icon:'🧠', tag:'IA probable' });
+  else if (m.mfccVariance > 5)
+    indicators.push({ name:'Riche variété timbrale (MFCC)', detail:`Variance MFCC de ${m.mfccVariance.toFixed(2)} — texture sonore expressive et naturellement évolutive`, cls:'good', icon:'🧠', tag:'Humain' });
+  else
+    indicators.push({ name:'Variété timbrale modérée (MFCC)', detail:`Variance MFCC de ${m.mfccVariance.toFixed(2)}`, cls:'neutral', icon:'🧠', tag:'Neutre' });
+
+  // Onset regularity
+  if (m.onsetCount >= 6) {
+    if (m.onsetCV < 0.08)
+      indicators.push({ name:'Rythme parfaitement quantifié', detail:`CV des onsets : ${(m.onsetCV*100).toFixed(1)}% · ${m.onsetBPM} BPM — timing trop régulier pour être humain`, cls:'bad', icon:'🥁', tag:'IA probable' });
+    else if (m.onsetCV > 0.18)
+      indicators.push({ name:'Micro-timing naturel', detail:`CV des onsets : ${(m.onsetCV*100).toFixed(1)}% · ${m.onsetBPM} BPM — variations de timing caractéristiques d'une interprétation humaine`, cls:'good', icon:'🥁', tag:'Humain' });
+    else
+      indicators.push({ name:'Timing légèrement régulier', detail:`CV des onsets : ${(m.onsetCV*100).toFixed(1)}% · ${m.onsetBPM} BPM`, cls:'neutral', icon:'🥁', tag:'Neutre' });
+  } else {
+    indicators.push({ name:'Analyse rythmique limitée', detail:`Seulement ${m.onsetCount} onsets détectés — extrait trop court ou signal très lisse`, cls:'neutral', icon:'🥁', tag:'Neutre' });
+  }
+
+  // Spectral contrast
+  if (m.spectralContrast < 1.0)
+    indicators.push({ name:'Contraste spectral faible', detail:`${m.spectralContrast.toFixed(2)} — énergie trop uniforme entre les bandes, signature des synthétiseurs IA`, cls:'bad', icon:'🌈', tag:'IA possible' });
+  else if (m.spectralContrast > 2.5)
+    indicators.push({ name:'Contraste spectral élevé', detail:`${m.spectralContrast.toFixed(2)} — forte distinction pics/vallées spectraux, cohérent avec des instruments réels`, cls:'good', icon:'🌈', tag:'Humain' });
+  else
+    indicators.push({ name:'Contraste spectral normal', detail:`${m.spectralContrast.toFixed(2)}`, cls:'neutral', icon:'🌈', tag:'Neutre' });
+
+  // Flux
+  const fv = m.flux * 1000;
+  if (fv < 1.5)
+    indicators.push({ name:'Évolution spectrale très faible', detail:`Flux : ${fv.toFixed(2)} (20 segments) — quasi-absence de variation sonore dans le temps`, cls:'bad', icon:'📈', tag:'IA probable' });
+  else if (fv > 5)
+    indicators.push({ name:'Évolution spectrale naturelle', detail:`Flux : ${fv.toFixed(2)} (20 segments) — bonne richesse sonore temporelle`, cls:'good', icon:'📈', tag:'Humain' });
+  else
+    indicators.push({ name:'Flux spectral modéré', detail:`Flux : ${fv.toFixed(2)} (20 segments)`, cls:'neutral', icon:'📈', tag:'Neutre' });
+
+  // RMS variability
+  if (m.rmsVariability < 0.05)
+    indicators.push({ name:'Dynamique trop régulière', detail:`Variation d'amplitude de ${(m.rmsVariability*100).toFixed(1)}% — absence de micro-expressions naturelles`, cls:'bad', icon:'🎚', tag:'IA probable' });
+  else if (m.rmsVariability > 0.35)
+    indicators.push({ name:'Expressivité dynamique naturelle', detail:`Variation d'amplitude de ${(m.rmsVariability*100).toFixed(1)}%`, cls:'good', icon:'🎚', tag:'Humain' });
+  else
+    indicators.push({ name:'Variabilité dynamique normale', detail:`Variation d'amplitude de ${(m.rmsVariability*100).toFixed(1)}%`, cls:'neutral', icon:'🎚', tag:'Neutre' });
+
+  // HF
+  if (m.hfRatio < 0.005 && m.sampleRate > 32000)
+    indicators.push({ name:'Hautes fréquences absentes', detail:`${(m.hfRatio*100).toFixed(2)}% d'énergie >12kHz — coupure typique des vocoders neuraux`, cls:'bad', icon:'🔊', tag:'IA probable' });
+  else if (m.hfRatio > 0.05)
+    indicators.push({ name:'Artefacts HF détectés', detail:`${(m.hfRatio*100).toFixed(1)}% d'énergie >12kHz — possible aliasing de synthèse`, cls:'bad', icon:'🔊', tag:'IA possible' });
+  else
+    indicators.push({ name:'Contenu HF cohérent', detail:`${(m.hfRatio*100).toFixed(2)}% d'énergie >12kHz — distribution naturelle`, cls:'good', icon:'🔊', tag:'Humain' });
+
+  // SNR + noise floor (combined indicator — most reliable feature)
+  const nfLog = -Math.log10(m.noiseFloor + 1e-9);
+  if (m.snrDB > 58 && nfLog > 6.0)
+    indicators.push({ name:'Plancher de bruit quasi inexistant', detail:`SNR ${m.snrDB.toFixed(0)} dB · noise floor ${m.noiseFloor.toExponential(1)} — signal digitalement pur, aucune chaîne analogique détectable`, cls:'bad', icon:'🔇', tag:'IA très probable' });
+  else if (m.snrDB > 50)
+    indicators.push({ name:'Signal très propre', detail:`SNR ${m.snrDB.toFixed(0)} dB · noise floor ${m.noiseFloor.toExponential(1)} — peu de bruit naturel, possible export numérique`, cls:'bad', icon:'🔇', tag:'IA possible' });
+  else if (m.snrDB < 20)
+    indicators.push({ name:'Bruit de fond élevé', detail:`SNR de ${m.snrDB.toFixed(0)} dB`, cls:'neutral', icon:'🔇', tag:'Neutre' });
+  else
+    indicators.push({ name:'Bruit naturel détecté', detail:`SNR ${m.snrDB.toFixed(0)} dB · noise floor ${m.noiseFloor.toExponential(1)} — micro-bruit ambiant cohérent avec un enregistrement réel`, cls:'good', icon:'🔇', tag:'Humain' });
+
+  return { aiScore, humanScore: 100 - aiScore, indicators,
+           pOnset, pMFCC, pFlux, pDynamic, pRMSVar, pContrast, pHF, pSNR };
+}
+
+// ======================================================
+//  RENDER RESULTS
+// ======================================================
+function renderResults(metrics) {
+  const { aiScore, humanScore, indicators, pOnset, pMFCC, pFlux, pDynamic, pRMSVar, pContrast } = scoreMetrics(metrics);
+
+  const card = document.getElementById('verdict-card');
+  let verdict, emoji, sub;
+  if (aiScore >= 63) {
+    verdict = 'Probablement IA'; emoji = '🤖';
+    sub = 'Les caractéristiques acoustiques sont cohérentes avec une génération par intelligence artificielle.';
+    card.className = 'verdict-card ai';
+  } else if (aiScore <= 38) {
+    verdict = 'Probablement Humain'; emoji = '🎸';
+    sub = 'Les caractéristiques acoustiques suggèrent fortement une production musicale humaine.';
+    card.className = 'verdict-card human';
+  } else {
+    verdict = 'Incertain'; emoji = '🎵';
+    sub = 'Les signaux sont mixtes. Les caractéristiques ne permettent pas de conclure avec certitude.';
+    card.className = 'verdict-card uncertain';
+  }
+
+  document.getElementById('verdict-emoji').textContent = emoji;
+  document.getElementById('verdict-title').textContent = verdict;
+  document.getElementById('verdict-sub').textContent = sub;
+  document.getElementById('score-human').textContent = humanScore + '%';
+  document.getElementById('score-ai').textContent = aiScore + '%';
+
+  const probFill = document.getElementById('prob-fill');
+  probFill.style.width = aiScore + '%';
+  if (aiScore >= 60) probFill.style.background = 'linear-gradient(90deg,#ff4c6a,#ff8c00)';
+  else if (aiScore <= 40) probFill.style.background = 'linear-gradient(90deg,#00e5a0,#00b4d8)';
+  else probFill.style.background = 'linear-gradient(90deg,#ffb400,#ff8c00)';
+
+  // Metrics grid — updated with advanced features
+  const grid = document.getElementById('metrics-grid');
+  grid.innerHTML = '';
+  const defs = [
+    { icon:'🧠', name:'Variance MFCC', value:metrics.mfccVariance.toFixed(2),
+      desc:'Stabilité timbrale · 24 segments',
+      pct:clamp(metrics.mfccVariance/10*100,0,100),
+      col:metrics.mfccVariance<1.5?'red':metrics.mfccVariance>5?'green':'yellow' },
+    { icon:'🥁', name:'Régularité rythmique',
+      value: metrics.onsetCount>=6 ? (metrics.onsetCV*100).toFixed(1)+'%' : '—',
+      desc:`${metrics.onsetCount} onsets · ${metrics.onsetBPM||'—'} BPM`,
+      pct:clamp(metrics.onsetCV*500,0,100),
+      col:metrics.onsetCount<6?'purple':metrics.onsetCV<0.08?'red':metrics.onsetCV>0.18?'green':'yellow' },
+    { icon:'🌈', name:'Contraste spectral', value:metrics.spectralContrast.toFixed(2),
+      desc:'6 bandes fréquentielles',
+      pct:clamp((metrics.spectralContrast/4)*100,0,100),
+      col:metrics.spectralContrast<1?'red':metrics.spectralContrast>2.5?'green':'yellow' },
+    { icon:'📊', name:'Plage dynamique', value:metrics.dynamicRangeDB.toFixed(1)+' dB',
+      desc:'Crête / RMS',
+      pct:clamp((metrics.dynamicRangeDB/20)*100,0,100),
+      col:metrics.dynamicRangeDB<6?'red':metrics.dynamicRangeDB>14?'green':'yellow' },
+    { icon:'〰️', name:'Variabilité RMS', value:(metrics.rmsVariability*100).toFixed(1)+'%',
+      desc:'Micro-variations d\'amplitude',
+      pct:clamp(metrics.rmsVariability*200,0,100),
+      col:metrics.rmsVariability<0.05?'red':metrics.rmsVariability>0.3?'green':'yellow' },
+    { icon:'📈', name:'Flux spectral', value:(metrics.flux*1000).toFixed(2),
+      desc:'Évolution temporelle · 20 seg.',
+      pct:clamp((metrics.flux*1000/8)*100,0,100),
+      col:metrics.flux*1000<1.5?'red':metrics.flux*1000>5?'green':'yellow' },
+    { icon:'🔇', name:'SNR / Noise floor',
+      value:metrics.snrDB.toFixed(0)+' dB',
+      desc:'Plancher : ' + metrics.noiseFloor.toExponential(1),
+      pct:clamp((metrics.snrDB/80)*100,0,100),
+      col:metrics.snrDB>55?'red':metrics.snrDB>42?'yellow':'green' },
+    { icon:'⏱', name:'Durée', value:metrics.duration.toFixed(1)+' s',
+      desc:metrics.sampleRate+' Hz',
+      pct:clamp((metrics.duration/300)*100,0,100), col:'purple' }
+  ];
+
+  for (const d of defs) {
+    const c = document.createElement('div');
+    c.className = 'metric-card';
+    c.innerHTML = `
+      <div class="metric-icon">${d.icon}</div>
+      <div class="metric-name">${d.name}</div>
+      <div class="metric-value">${d.value}</div>
+      <div class="metric-desc">${d.desc}</div>
+      <div class="metric-bar"><div class="metric-bar-fill ${d.col}" style="width:${d.pct}%"></div></div>
+    `;
+    grid.appendChild(c);
+  }
+
+  // Indicators
+  const list = document.getElementById('indicators-list');
+  list.innerHTML = '';
+  for (const ind of indicators) {
+    const item = document.createElement('div');
+    item.className = 'indicator-item';
+    item.innerHTML = `
+      <div class="ind-icon ${ind.cls}">${ind.icon}</div>
+      <div class="ind-body">
+        <div class="ind-name">${ind.name}</div>
+        <div class="ind-detail">${ind.detail}</div>
+      </div>
+      <span class="ind-tag ${ind.cls}">${ind.tag}</span>
+    `;
+    list.appendChild(item);
+  }
+
+  document.getElementById('results').classList.add('visible');
+}
+</script>
+</body>
+</html>
