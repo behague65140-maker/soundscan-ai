@@ -1349,7 +1349,7 @@ async function processFile(file) {
   drawSpectrum(fftData, sampleRate);
 
   setProgress(72, 'Calcul des métriques acoustiques…');
-  const metrics = await analyzeAudio(channelData, sampleRate, duration, fftData);
+  const metrics = await analyzeAudio(channelData, sampleRate, duration, fftData, audioBuffer);
 
   setProgress(92, 'Calcul du score final…');
   await sleep(350);
@@ -1548,14 +1548,86 @@ function computeMFCCVariance(data, sampleRate, numSegments) {
       ps[i] = (re[i] ** 2 + im[i] ** 2) / FRAME;
     allMFCC.push(frameMFCC(ps, FB, NUM_COEFFS));
   }
-  // Average variance of coefficients 1–12 across all segments
-  let total = 0;
+  // Static variance (coefficients 1–12)
+  let varTotal = 0;
   for (let c = 1; c < NUM_COEFFS; c++) {
     const vals = allMFCC.map(m => m[c]);
     const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    total += vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
+    varTotal += vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
   }
-  return total / (NUM_COEFFS - 1);
+  // Delta-MFCC variance — rate of change between consecutive segments
+  // AI: smooth interpolated transitions → low delta variance
+  // Human: abrupt, expressive changes → high delta variance
+  let deltaTotal = 0;
+  for (let c = 1; c < NUM_COEFFS; c++) {
+    const deltas = [];
+    for (let s = 1; s < allMFCC.length; s++)
+      deltas.push(allMFCC[s][c] - allMFCC[s-1][c]);
+    const dm = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+    deltaTotal += deltas.reduce((a, b) => a + (b - dm) ** 2, 0) / deltas.length;
+  }
+  return {
+    variance:      varTotal   / (NUM_COEFFS - 1),
+    deltaVariance: deltaTotal / (NUM_COEFFS - 1)
+  };
+}
+
+// Stereo L/R correlation analysis
+// AI stereo: either near-perfect (padded mono) or unnaturally stable correlation
+// Human: complex, time-varying correlation — changes with instrument placement
+function computeStereoCorrelation(audioBuffer) {
+  if (audioBuffer.numberOfChannels < 2) return { isStereo: false, mean: 0.5, std: 0.15 };
+  const L = audioBuffer.getChannelData(0);
+  const R = audioBuffer.getChannelData(1);
+  const WIN = 4096;
+  const corrs = [];
+  for (let i = 0; i + WIN < L.length; i += WIN) {
+    let lr = 0, l2 = 0, r2 = 0;
+    for (let j = 0; j < WIN; j++) {
+      lr += L[i+j] * R[i+j];
+      l2 += L[i+j] ** 2;
+      r2 += R[i+j] ** 2;
+    }
+    corrs.push(Math.abs(lr / (Math.sqrt(l2 * r2) || 1e-10)));
+  }
+  if (corrs.length === 0) return { isStereo: true, mean: 0.5, std: 0.1 };
+  const mean = corrs.reduce((a, b) => a + b, 0) / corrs.length;
+  const std  = Math.sqrt(corrs.reduce((a, b) => a + (b - mean) ** 2, 0) / corrs.length);
+  return { isStereo: true, mean, std };
+}
+
+// Beat autocorrelation strength
+// AI: sharp, clean autocorrelation peak (very regular beat)
+// Human: broader, less prominent peak (natural micro-timing)
+function computeBeatAutocorrelation(data, sampleRate) {
+  const HOP = 512;
+  const env = [];
+  for (let i = 0; i + HOP < data.length; i += HOP) {
+    let e = 0;
+    for (let j = 0; j < HOP; j++) e += data[i+j] ** 2;
+    env.push(Math.sqrt(e / HOP));
+  }
+  const minLag = Math.floor(sampleRate * 0.25 / HOP); // ~240 BPM max
+  const maxLag = Math.min(Math.floor(sampleRate * 1.5 / HOP), Math.floor(env.length / 2));
+  if (maxLag <= minLag) return { beatStrength: 1, bpm: 0 };
+
+  // Subtract mean to centre the signal
+  const meanE = env.reduce((a, b) => a + b, 0) / env.length;
+  const centred = env.map(e => e - meanE);
+
+  let maxAcf = -Infinity, beatLag = minLag;
+  const acfSlice = [];
+  for (let lag = minLag; lag < maxLag; lag++) {
+    let s = 0;
+    for (let i = 0; i < centred.length - lag; i++) s += centred[i] * centred[i + lag];
+    const a = s / (centred.length - lag);
+    acfSlice.push(a);
+    if (a > maxAcf) { maxAcf = a; beatLag = lag; }
+  }
+  const meanAcf = acfSlice.reduce((a, b) => a + b, 0) / acfSlice.length;
+  const beatStrength = maxAcf / (Math.abs(meanAcf) || 1e-6);
+  const bpm = Math.round(60 / (beatLag * HOP / sampleRate));
+  return { beatStrength, bpm };
 }
 
 function computeOnsetRegularity(data, sampleRate) {
@@ -1632,7 +1704,7 @@ function computeExtendedFlux(data, sampleRate, numSegments) {
 // ======================================================
 //  AUDIO ANALYSIS — v2
 // ======================================================
-async function analyzeAudio(data, sampleRate, duration, fftData) {
+async function analyzeAudio(data, sampleRate, duration, fftData, audioBuffer) {
   const { magnitudes } = fftData;
   const nyquist = sampleRate / 2;
   const N = magnitudes.length;
@@ -1683,16 +1755,21 @@ async function analyzeAudio(data, sampleRate, duration, fftData) {
 
   // Advanced features
   const flux             = computeExtendedFlux(data, sampleRate, 20);
-  const mfccVariance     = computeMFCCVariance(data, sampleRate, 24);
+  const mfcc             = computeMFCCVariance(data, sampleRate, 24);
   const onset            = computeOnsetRegularity(data, sampleRate);
   const spectralContrast = computeSpectralContrast(magnitudes, sampleRate);
+  const stereo           = computeStereoCorrelation(audioBuffer);
+  const beat             = computeBeatAutocorrelation(data, sampleRate);
 
   return {
     rms, peak, dynamicRangeDB, spectralCentroid,
     hfRatio, spectralFlatness, snrDB, noiseFloor, flux, rmsVariability,
-    mfccVariance,
+    mfccVariance: mfcc.variance, mfccDeltaVariance: mfcc.deltaVariance,
     onsetCV: onset.cv, onsetBPM: onset.bpm, onsetCount: onset.onsetCount,
-    spectralContrast, duration, sampleRate
+    spectralContrast,
+    stereoMean: stereo.mean, stereoStd: stereo.std, isStereo: stereo.isStereo,
+    beatStrength: beat.beatStrength, beatBPM: beat.bpm,
+    duration, sampleRate
   };
 }
 
@@ -1758,17 +1835,41 @@ function scoreMetrics(m) {
     else pHF = 0.25;
   }
 
-  // ─── Weighted combination — SNR dominates ───
+  // 10. Delta-MFCC — rate of timbre change
+  //     AI: smooth interpolated transitions → low delta variance
+  //     Human: abrupt expressive leaps → high delta variance
+  const pDeltaMFCC = sig(-m.mfccDeltaVariance, -4, 1.5);
+
+  // 11. Stereo correlation
+  //     AI padded-mono: mean ≈ 1.0, std ≈ 0  (very suspicious)
+  //     AI fake-stereo: mean moderate, std near 0 (unnaturally stable)
+  //     Human: mean 0.5–0.9, std > 0.05 (natural variation)
+  let pStereo = 0.5; // neutral if mono
+  if (m.isStereo) {
+    const pMean = sig(m.stereoMean, 0.94, 0.025);   // near 1.0 → AI
+    const pStd  = sig(-m.stereoStd,  -0.05, 0.015); // near 0   → AI
+    pStereo = 0.55 * pMean + 0.45 * pStd;
+  }
+
+  // 12. Beat autocorrelation strength
+  //     AI: very sharp, clean beat peak → high beatStrength
+  //     Human: broader, messier peak → lower beatStrength
+  const pBeat = m.beatBPM > 0 ? sig(m.beatStrength, 3.0, 0.8) : 0.5;
+
+  // ─── Weighted combination ───
   const aiProb = (
-    0.26 * pSNR        +   // ↑↑ primary signal
-    0.16 * pNoiseFloor +   // ↑↑ absolute silence check
-    0.12 * pDynamic    +
-    0.11 * pRMSVar     +
-    0.11 * pFlux       +
-    0.09 * pMFCC       +   // ↓ less reliable on modern AI
-    0.08 * pOnset      +   // ↓ less reliable on modern AI
-    0.04 * pContrast   +
-    0.03 * pHF
+    0.20 * pSNR        +
+    0.13 * pNoiseFloor +
+    0.10 * pDynamic    +
+    0.09 * pRMSVar     +
+    0.09 * pFlux       +
+    0.08 * pStereo     +
+    0.08 * pDeltaMFCC  +
+    0.07 * pBeat       +
+    0.07 * pMFCC       +
+    0.05 * pOnset      +
+    0.02 * pContrast   +
+    0.02 * pHF
   );
 
   const aiScore = Math.round(clamp(aiProb * 100, 0, 100));
@@ -1846,6 +1947,38 @@ function scoreMetrics(m) {
   else
     indicators.push({ name:'Bruit naturel détecté', detail:`SNR ${m.snrDB.toFixed(0)} dB · noise floor ${m.noiseFloor.toExponential(1)} — micro-bruit ambiant cohérent avec un enregistrement réel`, cls:'good', icon:'🔇', tag:'Humain' });
 
+  // Delta-MFCC
+  if (m.mfccDeltaVariance < 2)
+    indicators.push({ name:'Transitions timbrales trop lisses', detail:`Delta-MFCC : ${m.mfccDeltaVariance.toFixed(2)} — le timbre change de façon interpolée, caractéristique des générateurs neuraux`, cls:'bad', icon:'🎼', tag:'IA probable' });
+  else if (m.mfccDeltaVariance > 8)
+    indicators.push({ name:'Transitions timbrales expressives', detail:`Delta-MFCC : ${m.mfccDeltaVariance.toFixed(2)} — changements de timbre naturellement abrupts`, cls:'good', icon:'🎼', tag:'Humain' });
+  else
+    indicators.push({ name:'Transitions timbrales modérées', detail:`Delta-MFCC : ${m.mfccDeltaVariance.toFixed(2)}`, cls:'neutral', icon:'🎼', tag:'Neutre' });
+
+  // Stereo
+  if (m.isStereo) {
+    if (m.stereoMean > 0.96 && m.stereoStd < 0.02)
+      indicators.push({ name:'Stéréo artificielle (mono paddé)', detail:`Corrélation L/R : ${m.stereoMean.toFixed(3)} ± ${m.stereoStd.toFixed(3)} — canaux quasi-identiques, probable export mono converti`, cls:'bad', icon:'🎧', tag:'IA très probable' });
+    else if (m.stereoStd < 0.03)
+      indicators.push({ name:'Stéréo trop stable', detail:`Corrélation L/R : ${m.stereoMean.toFixed(3)} ± ${m.stereoStd.toFixed(3)} — variation L/R anormalement constante`, cls:'bad', icon:'🎧', tag:'IA possible' });
+    else if (m.stereoStd > 0.06)
+      indicators.push({ name:'Champ stéréo naturel', detail:`Corrélation L/R : ${m.stereoMean.toFixed(3)} ± ${m.stereoStd.toFixed(3)} — variation naturelle entre les canaux`, cls:'good', icon:'🎧', tag:'Humain' });
+    else
+      indicators.push({ name:'Stéréo modérée', detail:`Corrélation L/R : ${m.stereoMean.toFixed(3)} ± ${m.stereoStd.toFixed(3)}`, cls:'neutral', icon:'🎧', tag:'Neutre' });
+  } else {
+    indicators.push({ name:'Fichier mono', detail:`Un seul canal audio — analyse stéréo non disponible`, cls:'neutral', icon:'🎧', tag:'Neutre' });
+  }
+
+  // Beat strength
+  if (m.beatBPM > 0) {
+    if (m.beatStrength > 4)
+      indicators.push({ name:'Beat parfaitement régulier', detail:`Force autocorrélation : ${m.beatStrength.toFixed(1)} à ${m.beatBPM} BPM — rythme trop précis, caractéristique des séquenceurs IA`, cls:'bad', icon:'🥁', tag:'IA probable' });
+    else if (m.beatStrength < 2)
+      indicators.push({ name:'Rythme organique', detail:`Force autocorrélation : ${m.beatStrength.toFixed(1)} à ${m.beatBPM} BPM — pic de beat diffus, naturel`, cls:'good', icon:'🥁', tag:'Humain' });
+    else
+      indicators.push({ name:'Rythme modérément régulier', detail:`Force autocorrélation : ${m.beatStrength.toFixed(1)} à ${m.beatBPM} BPM`, cls:'neutral', icon:'🥁', tag:'Neutre' });
+  }
+
   return { aiScore, humanScore: 100 - aiScore, indicators,
            pOnset, pMFCC, pFlux, pDynamic, pRMSVar, pContrast, pHF, pSNR };
 }
@@ -1888,38 +2021,49 @@ function renderResults(metrics) {
   const grid = document.getElementById('metrics-grid');
   grid.innerHTML = '';
   const defs = [
-    { icon:'🧠', name:'Variance MFCC', value:metrics.mfccVariance.toFixed(2),
-      desc:'Stabilité timbrale · 24 segments',
-      pct:clamp(metrics.mfccVariance/10*100,0,100),
-      col:metrics.mfccVariance<1.5?'red':metrics.mfccVariance>5?'green':'yellow' },
-    { icon:'🥁', name:'Régularité rythmique',
-      value: metrics.onsetCount>=6 ? (metrics.onsetCV*100).toFixed(1)+'%' : '—',
-      desc:`${metrics.onsetCount} onsets · ${metrics.onsetBPM||'—'} BPM`,
-      pct:clamp(metrics.onsetCV*500,0,100),
-      col:metrics.onsetCount<6?'purple':metrics.onsetCV<0.08?'red':metrics.onsetCV>0.18?'green':'yellow' },
-    { icon:'🌈', name:'Contraste spectral', value:metrics.spectralContrast.toFixed(2),
-      desc:'6 bandes fréquentielles',
-      pct:clamp((metrics.spectralContrast/4)*100,0,100),
-      col:metrics.spectralContrast<1?'red':metrics.spectralContrast>2.5?'green':'yellow' },
-    { icon:'📊', name:'Plage dynamique', value:metrics.dynamicRangeDB.toFixed(1)+' dB',
-      desc:'Crête / RMS',
-      pct:clamp((metrics.dynamicRangeDB/20)*100,0,100),
-      col:metrics.dynamicRangeDB<6?'red':metrics.dynamicRangeDB>14?'green':'yellow' },
-    { icon:'〰️', name:'Variabilité RMS', value:(metrics.rmsVariability*100).toFixed(1)+'%',
-      desc:'Micro-variations d\'amplitude',
-      pct:clamp(metrics.rmsVariability*200,0,100),
-      col:metrics.rmsVariability<0.05?'red':metrics.rmsVariability>0.3?'green':'yellow' },
-    { icon:'📈', name:'Flux spectral', value:(metrics.flux*1000).toFixed(2),
-      desc:'Évolution temporelle · 20 seg.',
-      pct:clamp((metrics.flux*1000/8)*100,0,100),
-      col:metrics.flux*1000<1.5?'red':metrics.flux*1000>5?'green':'yellow' },
     { icon:'🔇', name:'SNR / Noise floor',
       value:metrics.snrDB.toFixed(0)+' dB',
       desc:'Plancher : ' + metrics.noiseFloor.toExponential(1),
       pct:clamp((metrics.snrDB/80)*100,0,100),
       col:metrics.snrDB>55?'red':metrics.snrDB>42?'yellow':'green' },
-    { icon:'⏱', name:'Durée', value:metrics.duration.toFixed(1)+' s',
-      desc:metrics.sampleRate+' Hz',
+    { icon:'🎧', name:'Stéréo L/R',
+      value: metrics.isStereo ? metrics.stereoMean.toFixed(3) : 'Mono',
+      desc: metrics.isStereo ? `σ = ${metrics.stereoStd.toFixed(3)}` : 'Canal unique',
+      pct: metrics.isStereo ? clamp(metrics.stereoMean*100,0,100) : 50,
+      col: !metrics.isStereo?'purple':metrics.stereoMean>0.96&&metrics.stereoStd<0.02?'red':metrics.stereoStd>0.06?'green':'yellow' },
+    { icon:'🎼', name:'Delta-MFCC',
+      value:metrics.mfccDeltaVariance.toFixed(2),
+      desc:'Vitesse de changement timbral',
+      pct:clamp(metrics.mfccDeltaVariance/15*100,0,100),
+      col:metrics.mfccDeltaVariance<2?'red':metrics.mfccDeltaVariance>8?'green':'yellow' },
+    { icon:'🥁', name:'Force du beat',
+      value: metrics.beatBPM>0 ? metrics.beatStrength.toFixed(1) : '—',
+      desc: metrics.beatBPM>0 ? `${metrics.beatBPM} BPM · autocorrélation` : 'BPM indéterminé',
+      pct: clamp((metrics.beatStrength/6)*100,0,100),
+      col: metrics.beatStrength>4?'red':metrics.beatStrength<2?'green':'yellow' },
+    { icon:'🧠', name:'Variance MFCC',
+      value:metrics.mfccVariance.toFixed(2),
+      desc:'Stabilité timbrale · 24 seg.',
+      pct:clamp(metrics.mfccVariance/10*100,0,100),
+      col:metrics.mfccVariance<1.5?'red':metrics.mfccVariance>5?'green':'yellow' },
+    { icon:'📊', name:'Plage dynamique',
+      value:metrics.dynamicRangeDB.toFixed(1)+' dB',
+      desc:'Crête / RMS',
+      pct:clamp((metrics.dynamicRangeDB/20)*100,0,100),
+      col:metrics.dynamicRangeDB<6?'red':metrics.dynamicRangeDB>14?'green':'yellow' },
+    { icon:'📈', name:'Flux spectral',
+      value:(metrics.flux*1000).toFixed(2),
+      desc:'Évolution temporelle · 20 seg.',
+      pct:clamp((metrics.flux*1000/8)*100,0,100),
+      col:metrics.flux*1000<1.5?'red':metrics.flux*1000>5?'green':'yellow' },
+    { icon:'〰️', name:'Variabilité RMS',
+      value:(metrics.rmsVariability*100).toFixed(1)+'%',
+      desc:'Micro-variations d\'amplitude',
+      pct:clamp(metrics.rmsVariability*200,0,100),
+      col:metrics.rmsVariability<0.05?'red':metrics.rmsVariability>0.3?'green':'yellow' },
+    { icon:'⏱', name:'Durée',
+      value:metrics.duration.toFixed(1)+' s',
+      desc:metrics.sampleRate+' Hz · ' + (metrics.isStereo?'Stéréo':'Mono'),
       pct:clamp((metrics.duration/300)*100,0,100), col:'purple' }
   ];
 
