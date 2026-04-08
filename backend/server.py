@@ -194,6 +194,8 @@ async def analyze(file: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
+        if _model is None:
+            load_model()
         # Extract features with librosa
         feats = extract_features(tmp_path)
         visuals = extract_visuals(tmp_path)
@@ -376,6 +378,8 @@ async def analyze_url(req: URLRequest):
         )
 
     try:
+        if _model is None:
+            load_model()
         feats = extract_features(audio_path)
         visuals = extract_visuals(audio_path)
 
@@ -478,9 +482,7 @@ async def health():
 
 @app.on_event("startup")
 async def startup_event():
-    import asyncio
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, load_model)
+    pass  # model loaded lazily on first request
 
 if __name__ == "__main__":
     print("\n" + "=" * 50)

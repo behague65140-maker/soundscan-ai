@@ -3,11 +3,12 @@ Feature extraction for AI music detection.
 Uses librosa for professional-grade audio analysis.
 """
 
-import librosa
 import numpy as np
+# librosa is imported lazily inside functions to reduce startup memory
 
 
 def extract_features(audio_path: str, sr: int = 22050, duration: float = 30) -> dict:
+    import librosa
     """
     Extract 80+ audio features optimized for AI music detection.
     Returns a flat dictionary of named features.
@@ -152,6 +153,7 @@ def extract_features(audio_path: str, sr: int = 22050, duration: float = 30) -> 
 
 def extract_visuals(audio_path: str, sr: int = 22050, duration: float = 30,
                     n_waveform: int = 300, n_spectrum: int = 512) -> dict:
+    import librosa
     """
     Extract waveform envelope and spectrum data for frontend visualisation.
     Returns small arrays suitable for JSON transport.
@@ -193,6 +195,7 @@ def extract_mel_spectrogram(
     audio_path: str, sr: int = 22050, duration: float = 10,
     n_mels: int = 128, fixed_length: int = 216
 ) -> np.ndarray:
+    import librosa
     """
     Extract normalized mel spectrogram for CNN model.
     Returns array of shape (n_mels, fixed_length).
