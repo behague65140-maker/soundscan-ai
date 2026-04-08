@@ -1152,6 +1152,15 @@
     .url-note.error { color: var(--ai); }
     .url-note.success { color: var(--human); }
 
+    .url-drm-note {
+      margin-top: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-align: center;
+      opacity: 0.7;
+    }
+
     .or-separator {
       display: flex;
       align-items: center;
@@ -1244,12 +1253,16 @@
             <button id="url-btn" class="url-submit" disabled>Analyser</button>
           </div>
           <div class="url-platforms">
-            <span class="format-tag">YouTube</span>
             <span class="format-tag">SoundCloud</span>
             <span class="format-tag">Bandcamp</span>
-            <span class="format-tag">Deezer</span>
-            <span class="format-tag">1000+ sites</span>
+            <span class="format-tag">Mixcloud</span>
+            <span class="format-tag">Audiomack</span>
+            <span class="format-tag">Jamendo</span>
+            <span class="format-tag">Vimeo</span>
+            <span class="format-tag">Internet Archive</span>
+            <span class="format-tag">Dailymotion</span>
           </div>
+          <div class="url-drm-note">⚠️ YouTube, Deezer, Spotify, Apple Music et Tidal ne sont pas supportés (DRM ou blocage IP)</div>
           <div class="url-note" id="url-note"></div>
         </div>
 
