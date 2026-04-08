@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python310", "ffmpeg", "libsndfile"]
+nixPkgs = ["python310", "ffmpeg", "libsndfile", "nodejs_20"]
 
 [start]
 cmd = "uvicorn server:app --host 0.0.0.0 --port $PORT"
