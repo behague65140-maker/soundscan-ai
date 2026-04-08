@@ -1,0 +1,12 @@
+{
+  "name": "generateur-visuels-3d",
+  "description": "Génère 3 prompts professionnels (image assemblée, plan explosé, transition vidéo) pour créer des visuels 3D à partir de n'importe quel objet ou produit.",
+  "invocation": "/generateur-visuels-3d",
+  "arguments": [
+    {
+      "name": "objet",
+      "description": "Le produit, objet ou concept à visualiser",
+      "required": true
+    }
+  ]
+}

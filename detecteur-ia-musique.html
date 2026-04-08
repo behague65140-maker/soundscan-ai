@@ -28,7 +28,8 @@
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { scroll-behavior: auto; }
+    html { scroll-behavior: smooth; }
+    section[id] { scroll-margin-top: 80px; }
 
     body {
       background: var(--bg);
@@ -1296,6 +1297,42 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   fileInput.value = '';
 });
 
+// ======================================================
+//  BACKEND CONNECTION
+// ======================================================
+const BACKEND_URL = 'http://localhost:8000';
+let _backendAvailable = false;
+let _currentFile = null;
+
+// Check if backend is running on page load
+(async function checkBackend() {
+  try {
+    const r = await fetch(BACKEND_URL + '/health', { signal: AbortSignal.timeout(2000) });
+    if (r.ok) {
+      const d = await r.json();
+      _backendAvailable = true;
+      const badge = document.querySelector('.hero-badge');
+      badge.innerHTML = `<span class="badge-dot"></span>${d.model_loaded ? 'Analyse ML (librosa + modèle entraîné)' : 'Analyse ML (librosa · heuristique serveur)'}`;
+      console.log('[SoundScan] Backend connecté:', d);
+    }
+  } catch(e) {
+    _backendAvailable = false;
+    console.log('[SoundScan] Backend non disponible — mode client-side');
+  }
+})();
+
+async function sendToBackend(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const r = await fetch(BACKEND_URL + '/analyze', {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(60000)
+  });
+  if (!r.ok) throw new Error('Backend error: ' + r.status);
+  return await r.json();
+}
+
 function formatBytes(b) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
@@ -1309,6 +1346,7 @@ function setProgress(pct, step) {
 }
 
 async function processFile(file) {
+  _currentFile = file;
   document.getElementById('file-name-display').textContent = file.name;
   document.getElementById('file-meta-display').textContent = formatBytes(file.size) + ' · ' + file.type;
   document.getElementById('file-info').style.display = 'flex';
@@ -1348,13 +1386,31 @@ async function processFile(file) {
   await new Promise(r => requestAnimationFrame(r));
   drawSpectrum(fftData, sampleRate);
 
-  setProgress(72, 'Calcul des métriques acoustiques…');
+  // Try backend first, fall back to client-side analysis
+  let backendResult = null;
+  if (_backendAvailable) {
+    setProgress(65, 'Envoi au serveur ML (librosa)…');
+    try {
+      backendResult = await sendToBackend(_currentFile);
+    } catch(e) {
+      console.warn('Backend indisponible, analyse côté client', e);
+      backendResult = null;
+    }
+  }
+
+  setProgress(78, 'Analyse acoustique locale…');
   const metrics = await analyzeAudio(channelData, sampleRate, duration, fftData, audioBuffer);
 
-  setProgress(92, 'Calcul du score final…');
-  await sleep(350);
+  // Merge backend ML score if available
+  if (backendResult) {
+    metrics._backend = backendResult;
+    metrics._method = backendResult.method;
+  }
+
+  setProgress(95, 'Calcul du score final…');
+  await sleep(300);
   setProgress(100, 'Analyse terminée !');
-  await sleep(400);
+  await sleep(350);
 
   document.getElementById('progress-section').classList.remove('visible');
   renderResults(metrics);
@@ -1987,20 +2043,39 @@ function scoreMetrics(m) {
 //  RENDER RESULTS
 // ======================================================
 function renderResults(metrics) {
-  const { aiScore, humanScore, indicators, pOnset, pMFCC, pFlux, pDynamic, pRMSVar, pContrast } = scoreMetrics(metrics);
+  // Use backend ML result if available, else client-side heuristic
+  const clientScore = scoreMetrics(metrics);
+  let aiScore, humanScore, indicators;
+
+  const bk = metrics._backend;
+  if (bk) {
+    aiScore = bk.ai_score;
+    humanScore = bk.human_score;
+    // Merge backend indicators + client indicators for completeness
+    indicators = (bk.indicators || []).map(ind => ({
+      name: ind.name, detail: ind.detail, cls: ind.cls, icon: '🧪', tag: ind.tag
+    }));
+    indicators.push(...clientScore.indicators);
+  } else {
+    aiScore = clientScore.aiScore;
+    humanScore = clientScore.humanScore;
+    indicators = clientScore.indicators;
+  }
 
   const card = document.getElementById('verdict-card');
   let verdict, emoji, sub;
+  const methodLabel = bk ? (bk.method === 'ml' ? ' (ML)' : ' (librosa)') : '';
+
   if (aiScore >= 63) {
-    verdict = 'Probablement IA'; emoji = '🤖';
+    verdict = 'Probablement IA' + methodLabel; emoji = '🤖';
     sub = 'Les caractéristiques acoustiques sont cohérentes avec une génération par intelligence artificielle.';
     card.className = 'verdict-card ai';
   } else if (aiScore <= 38) {
-    verdict = 'Probablement Humain'; emoji = '🎸';
+    verdict = 'Probablement Humain' + methodLabel; emoji = '🎸';
     sub = 'Les caractéristiques acoustiques suggèrent fortement une production musicale humaine.';
     card.className = 'verdict-card human';
   } else {
-    verdict = 'Incertain'; emoji = '🎵';
+    verdict = 'Incertain' + methodLabel; emoji = '🎵';
     sub = 'Les signaux sont mixtes. Les caractéristiques ne permettent pas de conclure avec certitude.';
     card.className = 'verdict-card uncertain';
   }
