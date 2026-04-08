@@ -476,8 +476,13 @@ async def health():
     }
 
 
+@app.on_event("startup")
+async def startup_event():
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, load_model)
+
 if __name__ == "__main__":
-    load_model()
     print("\n" + "=" * 50)
     print("  SoundScan AI — Backend API")
     print("  http://localhost:8000")
