@@ -1609,6 +1609,15 @@ urlBtn.addEventListener('click', async () => {
     setProgress(80, 'Résultats reçus…');
     const data = await r.json();
 
+    // Draw waveform & spectrum from backend visual data
+    if (data.visuals) {
+      document.getElementById('waveform-container').classList.add('visible');
+      document.getElementById('spectrum-container').classList.add('visible');
+      await new Promise(res => requestAnimationFrame(res));
+      drawWaveformRMS(data.visuals.waveform);
+      drawSpectrumFromArray(data.visuals.spectrum, data.visuals.sample_rate);
+    }
+
     // Build metrics object with exact property names renderResults/scoreMetrics expect
     const f = data.features;
     const metrics = {
@@ -1661,6 +1670,73 @@ urlBtn.addEventListener('click', async () => {
     urlBtn.textContent = 'Analyser';
   }
 });
+
+// ======================================================
+//  WAVEFORM FROM RMS (backend data)
+// ======================================================
+function drawWaveformRMS(rmsArray) {
+  const canvas = document.getElementById('waveform');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 72 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth, H = 72;
+  ctx.fillStyle = '#09090f';
+  ctx.fillRect(0, 0, W, H);
+
+  const mid = H / 2;
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#7c5cfc');
+  grad.addColorStop(0.5, '#e040fb');
+  grad.addColorStop(1, '#7c5cfc');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+
+  const n = rmsArray.length;
+  for (let i = 0; i < W; i++) {
+    const idx = Math.floor((i / W) * n);
+    const v = rmsArray[idx] || 0;
+    const h = v * mid * 0.9;
+    ctx.moveTo(i, mid - h);
+    ctx.lineTo(i, mid + h);
+  }
+  ctx.stroke();
+}
+
+function drawSpectrumFromArray(specArray, sampleRate) {
+  const canvas = document.getElementById('spectrum');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 110 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth, H = 110;
+  ctx.fillStyle = '#09090f';
+  ctx.fillRect(0, 0, W, H);
+
+  const nyquist = sampleRate / 2;
+  const n = specArray.length;
+  const bw = W / n;
+  for (let i = 0; i < n; i++) {
+    const ratio = i / n;
+    const h = specArray[i] * H * 0.93;
+    const hue = 260 + ratio * 90;
+    ctx.fillStyle = `hsl(${hue},75%,58%)`;
+    ctx.fillRect(i * bw, H - h, Math.max(bw - 0.4, 0.4), h);
+  }
+
+  ctx.font = '10px JetBrains Mono, monospace';
+  [500,1000,2000,4000,8000,16000].forEach(freq => {
+    if (freq > nyquist) return;
+    const x = (freq / nyquist) * W;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(x, 0, 1, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillText(freq >= 1000 ? (freq/1000)+'k' : freq+'', x+3, H-4);
+  });
+}
 
 // ======================================================
 //  WAVEFORM

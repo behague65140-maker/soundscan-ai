@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from features import extract_features, get_feature_names
+from features import extract_features, get_feature_names, extract_visuals
 
 MODEL_DIR = Path(__file__).parent / "models"
 
@@ -177,6 +177,7 @@ async def analyze(file: UploadFile = File(...)):
     try:
         # Extract features with librosa
         feats = extract_features(tmp_path)
+        visuals = extract_visuals(tmp_path)
 
         # Score with ML model if available, otherwise heuristic
         if _model is not None:
@@ -253,6 +254,7 @@ async def analyze(file: UploadFile = File(...)):
             "method": score["method"],
             "score_details": score,
             "indicators": indicators,
+            "visuals": visuals,
             "features": {
                 "snr_db": round(feats["snr_db"], 1),
                 "noise_floor": float(f'{feats["noise_floor"]:.2e}'),
@@ -329,6 +331,7 @@ async def analyze_url(req: URLRequest):
 
     try:
         feats = extract_features(audio_path)
+        visuals = extract_visuals(audio_path)
 
         if _model is not None:
             score = ml_score(feats)
@@ -376,6 +379,7 @@ async def analyze_url(req: URLRequest):
             "url": req.url,
             "score_details": score,
             "indicators": indicators,
+            "visuals": visuals,
             "features": {
                 "snr_db": round(feats["snr_db"], 1),
                 "noise_floor": float(f'{feats["noise_floor"]:.2e}'),

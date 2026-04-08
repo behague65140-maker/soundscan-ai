@@ -150,6 +150,45 @@ def extract_features(audio_path: str, sr: int = 22050, duration: float = 30) -> 
     return features
 
 
+def extract_visuals(audio_path: str, sr: int = 22050, duration: float = 30,
+                    n_waveform: int = 300, n_spectrum: int = 512) -> dict:
+    """
+    Extract waveform envelope and spectrum data for frontend visualisation.
+    Returns small arrays suitable for JSON transport.
+    """
+    y, sr = librosa.load(audio_path, sr=sr, duration=duration, mono=True)
+
+    # Waveform: RMS envelope (n_waveform points, values in [-1, 1])
+    hop = max(1, len(y) // n_waveform)
+    waveform = []
+    for i in range(n_waveform):
+        chunk = y[i * hop: i * hop + hop]
+        if len(chunk) == 0:
+            waveform.append(0.0)
+        else:
+            rms = float(np.sqrt(np.mean(chunk ** 2)))
+            # Alternate sign for visual symmetry (mimic oscilloscope look)
+            waveform.append(round(rms, 4))
+
+    # Spectrum: FFT magnitude (n_spectrum bins, log-scaled)
+    fft_size = 4096
+    start = len(y) // 5
+    frame = y[start: start + fft_size]
+    if len(frame) < fft_size:
+        frame = np.pad(frame, (0, fft_size - len(frame)))
+    window = np.hanning(fft_size)
+    mag = np.abs(np.fft.rfft(frame * window))
+    mag = mag[:n_spectrum]
+    mag_max = np.max(mag) or 1.0
+    spectrum = [round(float(v / mag_max), 4) for v in mag]
+
+    return {
+        "waveform": waveform,
+        "spectrum": spectrum,
+        "sample_rate": sr,
+    }
+
+
 def extract_mel_spectrogram(
     audio_path: str, sr: int = 22050, duration: float = 10,
     n_mels: int = 128, fixed_length: int = 216
