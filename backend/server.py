@@ -14,12 +14,15 @@ import os
 import subprocess
 import tempfile
 import json
+import uuid
+import time
+import threading
 import numpy as np
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 import uvicorn
 
@@ -28,6 +31,22 @@ from features import extract_features, get_feature_names, extract_visuals
 MODEL_DIR = Path(__file__).parent / "models"
 
 app = FastAPI(title="SoundScan AI", version="2.0")
+
+# ── Temporary audio store (id → file path) ──
+_audio_store: dict[str, str] = {}
+_AUDIO_TTL = 600  # seconds before auto-delete
+
+def _schedule_delete(audio_id: str, path: str, delay: int = _AUDIO_TTL):
+    """Delete audio file after TTL seconds."""
+    def _delete():
+        time.sleep(delay)
+        try:
+            if os.path.exists(path):
+                os.unlink(path)
+        except Exception:
+            pass
+        _audio_store.pop(audio_id, None)
+    threading.Thread(target=_delete, daemon=True).start()
 
 # Allow requests from any origin (the HTML page)
 app.add_middleware(
@@ -397,6 +416,11 @@ async def analyze_url(req: URLRequest):
             elif ss > 0.06:
                 indicators.append({"name": "Champ stéréo naturel", "detail": f"L/R = {sm:.3f} ± {ss:.3f}", "cls": "good", "tag": "Humain"})
 
+        # Store audio for streaming (auto-deleted after TTL)
+        audio_id = str(uuid.uuid4())
+        _audio_store[audio_id] = audio_path
+        _schedule_delete(audio_id, audio_path)
+
         return JSONResponse({
             "verdict": verdict,
             "ai_score": ai_pct,
@@ -408,6 +432,7 @@ async def analyze_url(req: URLRequest):
             "indicators": indicators,
             "visuals": visuals,
             "track": track_meta,
+            "audio_id": audio_id,
             "features": {
                 "snr_db": round(feats["snr_db"], 1),
                 "noise_floor": float(f'{feats["noise_floor"]:.2e}'),
@@ -423,10 +448,23 @@ async def analyze_url(req: URLRequest):
                 "harmonic_ratio": round(feats["harmonic_ratio"], 4),
             },
         })
-    finally:
-        # Clean up temp files
-        import shutil
-        shutil.rmtree(Path(audio_path).parent, ignore_errors=True)
+        # Note: audio_path kept alive in _audio_store, NOT deleted here
+
+
+@app.get("/audio/{audio_id}")
+async def stream_audio(audio_id: str):
+    """Stream a previously analyzed audio file (auto-deleted after 10 min)."""
+    path = _audio_store.get(audio_id)
+    if not path or not os.path.exists(path):
+        return JSONResponse(status_code=404, content={"error": "Audio introuvable ou expiré"})
+    suffix = Path(path).suffix.lower()
+    media_types = {
+        ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",
+        ".flac": "audio/flac", ".m4a": "audio/mp4", ".opus": "audio/opus",
+        ".webm": "audio/webm",
+    }
+    media_type = media_types.get(suffix, "audio/mpeg")
+    return FileResponse(path, media_type=media_type, filename=f"soundscan_{audio_id}{suffix}")
 
 
 @app.get("/health")
