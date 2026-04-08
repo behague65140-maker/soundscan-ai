@@ -11,6 +11,7 @@ Usage:
 """
 
 import os
+import subprocess
 import tempfile
 import json
 import numpy as np
@@ -19,6 +20,7 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import uvicorn
 
 from features import extract_features, get_feature_names
@@ -269,6 +271,130 @@ async def analyze(file: UploadFile = File(...)):
 
     finally:
         os.unlink(tmp_path)
+
+
+class URLRequest(BaseModel):
+    url: str
+
+
+def download_audio_from_url(url: str) -> str:
+    """Download audio from a URL using yt-dlp. Returns path to temp WAV file."""
+    tmp_dir = tempfile.mkdtemp()
+    out_path = os.path.join(tmp_dir, "audio.wav")
+
+    cmd = [
+        "yt-dlp",
+        "--no-playlist",
+        "--extract-audio",
+        "--audio-format", "wav",
+        "--audio-quality", "0",
+        "--max-filesize", "100M",
+        "--output", os.path.join(tmp_dir, "audio.%(ext)s"),
+        url,
+    ]
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=120
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"yt-dlp error: {result.stderr[:500]}")
+
+    # yt-dlp may produce the file with a different name
+    for f in Path(tmp_dir).glob("audio.*"):
+        if f.suffix in (".wav", ".mp3", ".m4a", ".ogg", ".flac", ".opus", ".webm"):
+            return str(f)
+
+    raise RuntimeError("No audio file produced by yt-dlp")
+
+
+@app.post("/analyze-url")
+async def analyze_url(req: URLRequest):
+    """
+    Analyze audio from a URL (YouTube, SoundCloud, Bandcamp, etc.).
+    Uses yt-dlp to download, then librosa to analyze.
+    """
+    try:
+        audio_path = download_audio_from_url(req.url)
+    except RuntimeError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e), "hint": "Vérifiez l'URL ou installez yt-dlp"}
+        )
+    except subprocess.TimeoutExpired:
+        return JSONResponse(
+            status_code=408,
+            content={"error": "Téléchargement trop long (>2min)"}
+        )
+
+    try:
+        feats = extract_features(audio_path)
+
+        if _model is not None:
+            score = ml_score(feats)
+            score["heuristic"] = heuristic_score(feats)
+        else:
+            score = heuristic_score(feats)
+
+        ai_pct = score["ai_score"]
+        human_pct = 100 - ai_pct
+
+        if ai_pct >= 63:
+            verdict = "Probablement IA"
+        elif ai_pct <= 38:
+            verdict = "Probablement Humain"
+        else:
+            verdict = "Incertain"
+
+        indicators = []
+
+        if feats["snr_db"] > 58 and feats["noise_floor"] < 1e-5:
+            indicators.append({"name": "Signal digitalement pur", "detail": f'SNR {feats["snr_db"]:.0f} dB', "cls": "bad", "tag": "IA très probable"})
+        elif feats["snr_db"] > 48:
+            indicators.append({"name": "Signal très propre", "detail": f'SNR {feats["snr_db"]:.0f} dB', "cls": "bad", "tag": "IA possible"})
+        else:
+            indicators.append({"name": "Bruit naturel détecté", "detail": f'SNR {feats["snr_db"]:.0f} dB', "cls": "good", "tag": "Humain"})
+
+        if feats["beat_regularity_cv"] < 0.06:
+            indicators.append({"name": "Rythme quantifié", "detail": f'CV = {feats["beat_regularity_cv"]:.3f}', "cls": "bad", "tag": "IA probable"})
+        elif feats["beat_regularity_cv"] > 0.15:
+            indicators.append({"name": "Micro-timing naturel", "detail": f'CV = {feats["beat_regularity_cv"]:.3f}', "cls": "good", "tag": "Humain"})
+
+        if feats.get("is_stereo"):
+            sm, ss = feats["stereo_corr_mean"], feats["stereo_corr_std"]
+            if sm > 0.96 and ss < 0.02:
+                indicators.append({"name": "Stéréo artificielle", "detail": f"L/R = {sm:.3f} ± {ss:.3f}", "cls": "bad", "tag": "IA très probable"})
+            elif ss > 0.06:
+                indicators.append({"name": "Champ stéréo naturel", "detail": f"L/R = {sm:.3f} ± {ss:.3f}", "cls": "good", "tag": "Humain"})
+
+        return JSONResponse({
+            "verdict": verdict,
+            "ai_score": ai_pct,
+            "human_score": human_pct,
+            "method": score["method"],
+            "source": "url",
+            "url": req.url,
+            "score_details": score,
+            "indicators": indicators,
+            "features": {
+                "snr_db": round(feats["snr_db"], 1),
+                "noise_floor": float(f'{feats["noise_floor"]:.2e}'),
+                "dynamic_range_db": round(feats["dynamic_range_db"], 1),
+                "tempo": round(feats["tempo"], 1),
+                "beat_regularity_cv": round(feats["beat_regularity_cv"], 4),
+                "rms_cv": round(feats["rms_cv"], 4),
+                "spectral_flatness": round(feats["spectral_flatness_mean"], 4),
+                "spectral_flux": round(feats["spectral_flux_mean"], 4),
+                "stereo_corr_mean": round(feats.get("stereo_corr_mean", 0.5), 4),
+                "stereo_corr_std": round(feats.get("stereo_corr_std", 0.1), 4),
+                "is_stereo": feats.get("is_stereo", False),
+                "harmonic_ratio": round(feats["harmonic_ratio"], 4),
+            },
+        })
+    finally:
+        # Clean up temp files
+        import shutil
+        shutil.rmtree(Path(audio_path).parent, ignore_errors=True)
 
 
 @app.get("/health")

@@ -982,10 +982,114 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
+    /* ===== URL INPUT ===== */
+    .url-input-wrap {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 0;
+    }
+
+    .url-input-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .url-icon {
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .url-field {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .url-field::placeholder { color: var(--text-secondary); }
+    .url-field:focus { border-color: var(--accent); }
+
+    .url-submit {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 24px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.2s, transform 0.15s;
+      flex-shrink: 0;
+    }
+
+    .url-submit:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .url-submit:not(:disabled):hover {
+      transform: translateY(-1px);
+      opacity: 0.9;
+    }
+
+    .url-platforms {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      justify-content: center;
+    }
+
+    .url-note {
+      margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+
+    .url-note.error { color: var(--ai); }
+    .url-note.success { color: var(--human); }
+
+    .or-separator {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 20px 0;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .or-separator::before,
+    .or-separator::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--card-border);
+    }
+
     @media (max-width: 600px) {
       .metrics-grid { grid-template-columns: 1fr 1fr; }
       .scores-row { gap: 16px; }
       .score-value { font-size: 32px; }
+      .url-input-row { flex-direction: column; }
+      .url-submit { width: 100%; }
     }
   </style>
 </head>
@@ -1041,7 +1145,27 @@
       <div style="max-width:860px; margin:0 auto; padding:0 24px 80px;">
 
         <h2 class="section-title">Analyseur Audio</h2>
-        <p class="section-subtitle">Déposez votre fichier audio — l'analyse dure quelques secondes.</p>
+        <p class="section-subtitle">Déposez un fichier ou collez un lien — l'analyse dure quelques secondes.</p>
+
+        <!-- URL Input -->
+        <div class="url-input-wrap" id="url-input-wrap">
+          <div class="url-input-row">
+            <div class="url-icon">🔗</div>
+            <input type="text" id="url-input" class="url-field"
+              placeholder="Coller un lien YouTube, SoundCloud, Bandcamp…" />
+            <button id="url-btn" class="url-submit" disabled>Analyser</button>
+          </div>
+          <div class="url-platforms">
+            <span class="format-tag">YouTube</span>
+            <span class="format-tag">SoundCloud</span>
+            <span class="format-tag">Bandcamp</span>
+            <span class="format-tag">Deezer</span>
+            <span class="format-tag">1000+ sites</span>
+          </div>
+          <div class="url-note" id="url-note"></div>
+        </div>
+
+        <div class="or-separator"><span>ou</span></div>
 
         <!-- Drop Zone -->
         <div class="drop-zone" id="drop-zone">
@@ -1300,7 +1424,8 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 // ======================================================
 //  BACKEND CONNECTION
 // ======================================================
-const BACKEND_URL = 'http://localhost:8000';
+// Change this to your Railway URL once deployed, e.g. 'https://soundscan-ai.up.railway.app'
+const BACKEND_URL = window.SOUNDSCAN_BACKEND_URL || 'http://localhost:8000';
 let _backendAvailable = false;
 let _currentFile = null;
 
@@ -1420,6 +1545,109 @@ async function processFile(file) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ======================================================
+//  URL INPUT
+// ======================================================
+const urlInput = document.getElementById('url-input');
+const urlBtn = document.getElementById('url-btn');
+const urlNote = document.getElementById('url-note');
+
+function isValidURL(s) {
+  try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:'; }
+  catch { return false; }
+}
+
+urlInput.addEventListener('input', () => {
+  urlBtn.disabled = !urlInput.value.trim();
+});
+
+urlInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !urlBtn.disabled) urlBtn.click();
+});
+
+urlBtn.addEventListener('click', async () => {
+  const url = urlInput.value.trim();
+  if (!isValidURL(url)) {
+    urlNote.textContent = 'URL invalide — collez un lien complet (https://…)';
+    urlNote.className = 'url-note error';
+    return;
+  }
+
+  if (!_backendAvailable) {
+    urlNote.textContent = 'Backend requis — lancez: python server.py (port 8000)';
+    urlNote.className = 'url-note error';
+    return;
+  }
+
+  // Reset UI
+  urlBtn.disabled = true;
+  urlBtn.textContent = 'Téléchargement…';
+  urlNote.textContent = 'Téléchargement et analyse en cours — cela peut prendre 30-60s…';
+  urlNote.className = 'url-note';
+
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('waveform-container').classList.remove('visible');
+  document.getElementById('spectrum-container').classList.remove('visible');
+  document.getElementById('file-info').style.display = 'none';
+  document.getElementById('progress-section').classList.add('visible');
+  setProgress(10, 'Envoi de l\'URL au serveur…');
+
+  try {
+    setProgress(25, 'Téléchargement audio via yt-dlp…');
+    const r = await fetch(BACKEND_URL + '/analyze-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(180000)
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: 'Erreur serveur ' + r.status }));
+      throw new Error(err.error || 'Erreur ' + r.status);
+    }
+
+    setProgress(80, 'Résultats reçus…');
+    const data = await r.json();
+
+    // Build metrics object compatible with renderResults
+    const metrics = {
+      _backend: data,
+      _method: data.method,
+      _fromURL: true,
+      snrDB: data.features.snr_db,
+      noiseFloor: data.features.noise_floor,
+      dynamicRange: data.features.dynamic_range_db,
+      tempo: data.features.tempo,
+      beatCV: data.features.beat_regularity_cv,
+      rmsCV: data.features.rms_cv,
+      spectralFlatness: data.features.spectral_flatness,
+      spectralFlux: data.features.spectral_flux,
+      stereoCorr: data.features.stereo_corr_mean,
+      stereoCorrStd: data.features.stereo_corr_std,
+      isStereo: data.features.is_stereo,
+      harmonicRatio: data.features.harmonic_ratio,
+    };
+
+    setProgress(100, 'Analyse terminée !');
+    await sleep(350);
+
+    document.getElementById('progress-section').classList.remove('visible');
+    urlNote.textContent = 'Analyse terminée !';
+    urlNote.className = 'url-note success';
+    renderResults(metrics);
+
+    document.getElementById('analyser').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } catch(e) {
+    document.getElementById('progress-section').classList.remove('visible');
+    urlNote.textContent = e.message || 'Erreur lors de l\'analyse';
+    urlNote.className = 'url-note error';
+  } finally {
+    urlBtn.disabled = false;
+    urlBtn.textContent = 'Analyser';
+  }
+});
 
 // ======================================================
 //  WAVEFORM
