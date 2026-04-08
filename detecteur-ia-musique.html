@@ -1609,23 +1609,37 @@ urlBtn.addEventListener('click', async () => {
     setProgress(80, 'Résultats reçus…');
     const data = await r.json();
 
-    // Build metrics object compatible with renderResults
+    // Build metrics object with exact property names renderResults/scoreMetrics expect
+    const f = data.features;
     const metrics = {
       _backend: data,
       _method: data.method,
       _fromURL: true,
-      snrDB: data.features.snr_db,
-      noiseFloor: data.features.noise_floor,
-      dynamicRange: data.features.dynamic_range_db,
-      tempo: data.features.tempo,
-      beatCV: data.features.beat_regularity_cv,
-      rmsCV: data.features.rms_cv,
-      spectralFlatness: data.features.spectral_flatness,
-      spectralFlux: data.features.spectral_flux,
-      stereoCorr: data.features.stereo_corr_mean,
-      stereoCorrStd: data.features.stereo_corr_std,
-      isStereo: data.features.is_stereo,
-      harmonicRatio: data.features.harmonic_ratio,
+      // Core
+      snrDB:           f.snr_db,
+      noiseFloor:      f.noise_floor,
+      dynamicRangeDB:  f.dynamic_range_db,
+      rmsVariability:  f.rms_cv,
+      flux:            f.spectral_flux,
+      // Stereo
+      isStereo:        f.is_stereo,
+      stereoMean:      f.stereo_corr_mean,
+      stereoStd:       f.stereo_corr_std,
+      // Beat
+      beatBPM:         f.tempo,
+      beatStrength:    3.0,       // neutral — not returned by backend
+      // MFCC (not returned by backend → neutral defaults)
+      mfccVariance:    3.0,
+      mfccDeltaVariance: 3.0,
+      // Onset (not returned by backend → neutral)
+      onsetCount:      10,
+      onsetCV:         0.15,
+      // Spectral
+      spectralContrast: 2.0,
+      hfRatio:         0.02,
+      // Display
+      duration:        30,
+      sampleRate:      22050,
     };
 
     setProgress(100, 'Analyse terminée !');
