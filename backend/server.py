@@ -33,7 +33,7 @@ MODEL_DIR = Path(__file__).parent / "models"
 app = FastAPI(title="SoundScan AI", version="2.0")
 
 # ── Temporary audio store (id → file path) ──
-_audio_store: dict[str, str] = {}
+_audio_store = {}  # type: dict
 _AUDIO_TTL = 600  # seconds before auto-delete
 
 def _schedule_delete(audio_id: str, path: str, delay: int = _AUDIO_TTL):
