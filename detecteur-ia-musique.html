@@ -982,6 +982,57 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
+    /* ===== TRACK INFO CARD ===== */
+    .track-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      padding: 14px 18px;
+      margin-top: 16px;
+    }
+
+    .track-thumb {
+      width: 72px;
+      height: 72px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.05);
+      flex-shrink: 0;
+    }
+
+    .track-details { flex: 1; min-width: 0; }
+
+    .track-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-artist {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-platform {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
     /* ===== URL INPUT ===== */
     .url-input-wrap {
       background: var(--card);
@@ -1181,6 +1232,16 @@
             <span class="format-tag">M4A</span>
           </div>
           <input type="file" id="file-input" accept="audio/*" />
+        </div>
+
+        <!-- Track Info (URL analysis) -->
+        <div class="track-info" id="track-info" style="display:none">
+          <img class="track-thumb" id="track-thumb" src="" alt="" />
+          <div class="track-details">
+            <div class="track-title" id="track-title"></div>
+            <div class="track-artist" id="track-artist"></div>
+            <div class="track-platform" id="track-platform"></div>
+          </div>
         </div>
 
         <!-- File Info -->
@@ -1418,6 +1479,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   document.getElementById('spectrum-container').classList.remove('visible');
   document.getElementById('progress-section').classList.remove('visible');
   document.getElementById('file-info').style.display = 'none';
+  document.getElementById('track-info').style.display = 'none';
   fileInput.value = '';
 });
 
@@ -1589,6 +1651,7 @@ urlBtn.addEventListener('click', async () => {
   document.getElementById('waveform-container').classList.remove('visible');
   document.getElementById('spectrum-container').classList.remove('visible');
   document.getElementById('file-info').style.display = 'none';
+  document.getElementById('track-info').style.display = 'none';
   document.getElementById('progress-section').classList.add('visible');
   setProgress(10, 'Envoi de l\'URL au serveur…');
 
@@ -1608,6 +1671,21 @@ urlBtn.addEventListener('click', async () => {
 
     setProgress(80, 'Résultats reçus…');
     const data = await r.json();
+
+    // Show track metadata card
+    if (data.track && (data.track.title || data.track.thumbnail)) {
+      const t = data.track;
+      if (t.thumbnail) {
+        document.getElementById('track-thumb').src = t.thumbnail;
+        document.getElementById('track-thumb').style.display = 'block';
+      } else {
+        document.getElementById('track-thumb').style.display = 'none';
+      }
+      document.getElementById('track-title').textContent = t.title || url;
+      document.getElementById('track-artist').textContent = t.artist || '';
+      document.getElementById('track-platform').textContent = t.platform || '';
+      document.getElementById('track-info').style.display = 'flex';
+    }
 
     // Draw waveform & spectrum from backend visual data
     if (data.visuals) {

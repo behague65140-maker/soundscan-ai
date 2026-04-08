@@ -279,10 +279,34 @@ class URLRequest(BaseModel):
     url: str
 
 
+def get_track_metadata(url: str) -> dict:
+    """Extract track metadata (title, artist, thumbnail) without downloading audio."""
+    cmd = [
+        "yt-dlp",
+        "--no-playlist",
+        "--dump-json",
+        "--no-download",
+        url,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0 or not result.stdout.strip():
+        return {}
+    try:
+        info = json.loads(result.stdout.strip().splitlines()[0])
+        return {
+            "title": info.get("title", ""),
+            "artist": info.get("uploader") or info.get("artist") or info.get("channel", ""),
+            "thumbnail": info.get("thumbnail", ""),
+            "duration": info.get("duration"),
+            "platform": info.get("extractor_key", ""),
+        }
+    except Exception:
+        return {}
+
+
 def download_audio_from_url(url: str) -> str:
     """Download audio from a URL using yt-dlp. Returns path to temp WAV file."""
     tmp_dir = tempfile.mkdtemp()
-    out_path = os.path.join(tmp_dir, "audio.wav")
 
     cmd = [
         "yt-dlp",
@@ -316,6 +340,9 @@ async def analyze_url(req: URLRequest):
     Analyze audio from a URL (YouTube, SoundCloud, Bandcamp, etc.).
     Uses yt-dlp to download, then librosa to analyze.
     """
+    # Fetch metadata (thumbnail, title, artist) in parallel with download
+    track_meta = get_track_metadata(req.url)
+
     try:
         audio_path = download_audio_from_url(req.url)
     except RuntimeError as e:
@@ -380,6 +407,7 @@ async def analyze_url(req: URLRequest):
             "score_details": score,
             "indicators": indicators,
             "visuals": visuals,
+            "track": track_meta,
             "features": {
                 "snr_db": round(feats["snr_db"], 1),
                 "noise_floor": float(f'{feats["noise_floor"]:.2e}'),
